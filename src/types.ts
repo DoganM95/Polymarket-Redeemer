@@ -16,6 +16,8 @@ export interface EncryptedKeys {
   apiKey: string;
   apiSecret: string;
   apiPassphrase: string;
+  /** Polygon PoS JSON-RPC HTTPS endpoint (from setup wizard) */
+  rpcUrl?: string;
 }
 
 /**

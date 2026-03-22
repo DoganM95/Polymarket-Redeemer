@@ -3,6 +3,7 @@
  * Encrypts sensitive data using AES-256-GCM
  */
 
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,6 +12,50 @@ import { fileURLToPath } from 'node:url';
 import type { EncryptedKeys, EncryptedData } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const POLYGON_RPC_PROVIDERS_DOCS =
+  'https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers';
+
+function isValidHttpsRpcUrl(raw: string): boolean {
+  const s = raw.trim();
+  if (!s.startsWith('https://')) {
+    return false;
+  }
+  try {
+    const u = new URL(s);
+    return u.protocol === 'https:' && Boolean(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function readWindowsClipboard(): string {
+  try {
+    const buf = execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', 'Get-Clipboard -Raw'],
+      { encoding: 'utf8', maxBuffer: 65536, windowsHide: true }
+    );
+    return buf.replace(/\ufeff/g, '').replace(/\r\n/g, '\n').trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Windows CMD often does not deliver Ctrl+V to Node readline. If the user
+ * typed @paste, substitute the current clipboard contents.
+ */
+function applyWindowsPasteShortcut(line: string): string {
+  const t = line.trim();
+  if (process.platform === 'win32' && /^@paste$/i.test(t)) {
+    return readWindowsClipboard();
+  }
+  return line;
+}
+
+const WIN_CMD_PASTE_HINT =
+  '\n  (CMD: try Shift+Insert, or right-click. If Ctrl+V does nothing, copy the value, type @paste, then Enter.)';
 
 class KeyManager {
   private keyFile: string;
@@ -131,6 +176,21 @@ class KeyManager {
   }
 
   /**
+   * Like ask(), with optional Windows hint for fields where paste is common.
+   */
+  private askWithOptionalPasteHint(
+    rl: readline.Interface,
+    question: string,
+    showWinPasteHint: boolean
+  ): Promise<string> {
+    const q =
+      showWinPasteHint && process.platform === 'win32'
+        ? `${question}${WIN_CMD_PASTE_HINT}\n`
+        : question;
+    return this.ask(rl, q);
+  }
+
+  /**
    * Ask a question with hidden input (for passwords)
    * Shows asterisks instead of the actual characters
    */
@@ -147,41 +207,41 @@ class KeyManager {
       stdin.setEncoding('utf8');
       
       let input = '';
-      
-      const onData = (char: string) => {
-        // Handle Enter key
-        if (char === '\r' || char === '\n') {
-          stdin.setRawMode(false);
-          stdin.pause();
-          stdin.removeListener('data', onData);
-          stdout.write('\n');
-          resolve(input);
-          return;
-        }
-        
-        // Handle Backspace (127) or Delete (8)
-        if (char === '\x7f' || char === '\b') {
-          if (input.length > 0) {
-            input = input.slice(0, -1);
-            stdout.write('\b \b');
-          }
-          return;
-        }
-        
-        // Handle Ctrl+C
-        if (char === '\x03') {
-          stdin.setRawMode(false);
-          stdin.pause();
-          stdin.removeListener('data', onData);
-          stdout.write('\n');
-          process.exit(0);
-        }
-        
-        // Add character to input and show asterisk
-        input += char;
-        stdout.write('*');
+
+      const finish = () => {
+        stdin.setRawMode(false);
+        stdin.pause();
+        stdin.removeListener('data', onData);
+        stdout.write('\n');
+        resolve(input);
       };
-      
+
+      const onData = (chunk: string | Buffer) => {
+        const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+        for (const char of s) {
+          if (char === '\r' || char === '\n') {
+            finish();
+            return;
+          }
+          if (char === '\x7f' || char === '\b') {
+            if (input.length > 0) {
+              input = input.slice(0, -1);
+              stdout.write('\b \b');
+            }
+            continue;
+          }
+          if (char === '\x03') {
+            stdin.setRawMode(false);
+            stdin.pause();
+            stdin.removeListener('data', onData);
+            stdout.write('\n');
+            process.exit(0);
+          }
+          input += char;
+          stdout.write('*');
+        }
+      };
+
       stdin.on('data', onData);
     });
   }
@@ -195,9 +255,55 @@ class KeyManager {
     try {
       console.log('Secure Key Setup Wizard');
       console.log('==========================');
+      console.log('');
+      console.log(
+        'Polygon public RPC (polygon-rpc.com) is deprecated. Pick an HTTPS endpoint from:'
+      );
+      console.log(`  ${POLYGON_RPC_PROVIDERS_DOCS}`);
+      console.log('');
 
-      const privateKey = await this.ask(rl, 'Enter your wallet private key: ');
-      const funderAddress = await this.ask(rl, 'Enter your Polymarket proxy wallet address: ');
+      let rpcUrl = '';
+      while (!isValidHttpsRpcUrl(rpcUrl)) {
+        rpcUrl = await this.ask(
+          rl,
+          'Enter your Polygon PoS RPC URL (https://...): '
+        );
+        if (!isValidHttpsRpcUrl(rpcUrl)) {
+          console.log(
+            'Invalid URL: use an https:// JSON-RPC endpoint from the providers list above.'
+          );
+        }
+      }
+
+      let privateKey = '';
+      while (!privateKey.trim()) {
+        const line = await this.askWithOptionalPasteHint(
+          rl,
+          'Enter your wallet private key:',
+          true
+        );
+        privateKey = applyWindowsPasteShortcut(line);
+        if (/^@paste$/i.test(line.trim()) && !privateKey.trim()) {
+          console.log('Clipboard was empty. Copy your private key, then type @paste and Enter again.');
+        } else if (!privateKey.trim()) {
+          console.log('Private key is required.');
+        }
+      }
+
+      let funderAddress = '';
+      while (!funderAddress.trim()) {
+        const line = await this.askWithOptionalPasteHint(
+          rl,
+          'Enter your Polymarket proxy wallet address:',
+          true
+        );
+        funderAddress = applyWindowsPasteShortcut(line);
+        if (/^@paste$/i.test(line.trim()) && !funderAddress.trim()) {
+          console.log('Clipboard was empty. Copy the address, then type @paste and Enter again.');
+        } else if (!funderAddress.trim()) {
+          console.log('Proxy wallet address is required.');
+        }
+      }
       const apiKey = await this.ask(rl, 'Enter your Builder API key: ');
       const apiSecret = await this.ask(rl, 'Enter your Builder API secret: ');
       const apiPassphrase = await this.ask(rl, 'Enter your Builder API passphrase: ');
@@ -220,7 +326,8 @@ class KeyManager {
         funderAddress: funderAddress.trim() as `0x${string}`,
         apiKey: apiKey.trim(),
         apiSecret: apiSecret.trim(),
-        apiPassphrase: apiPassphrase.trim()
+        apiPassphrase: apiPassphrase.trim(),
+        rpcUrl: rpcUrl.trim()
       };
 
       this.storeKeys(keys, password);

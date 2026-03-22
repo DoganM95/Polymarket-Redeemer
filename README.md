@@ -418,7 +418,7 @@ These environment variables can optionally override default settings:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `RPC_URL` | Polygon RPC endpoint | `https://polygon-rpc.com` |
+| `RPC_URL` | Polygon PoS HTTPS RPC (optional if saved during `--setup`) | _(see [Polygon RPC providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers))_ |
 | `LOG_LEVEL` | Logging level (ERROR, WARN, INFO, DEBUG) | `INFO` |
 | `MAX_CONCURRENT_REDEMPTIONS` | Max parallel redemptions | `3` |
 

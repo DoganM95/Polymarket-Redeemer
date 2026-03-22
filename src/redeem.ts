@@ -51,7 +51,7 @@ SETUP:
 
 ENVIRONMENT VARIABLES:
   REDEEM_PASSWORD    Encryption password (for automated scripts)
-  RPC_URL            Polygon RPC endpoint (optional)
+  RPC_URL            Polygon PoS HTTPS RPC (overrides URL saved at setup; optional if stored in keys)
   LOG_LEVEL          Logging level: ERROR, WARN, INFO, DEBUG (optional)
 
 For more information, see README.md
@@ -293,6 +293,17 @@ async function main(): Promise<MainResult> {
 
   if (!validators.isValidAddress(keys.funderAddress)) {
     console.error('[ERROR] Invalid funder address format');
+    process.exit(1);
+  }
+
+  if (!process.env['RPC_URL']?.trim() && keys.rpcUrl?.trim()) {
+    (CONFIG.blockchain as { rpcUrl: string }).rpcUrl = keys.rpcUrl.trim();
+  }
+
+  if (!CONFIG.blockchain.rpcUrl?.trim()) {
+    console.error('[ERROR] Polygon RPC URL is not configured.');
+    console.error('  Set RPC_URL in the environment, or run: npx tsx src/redeem.ts --reset');
+    console.error('  Choose a provider: https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers');
     process.exit(1);
   }
 

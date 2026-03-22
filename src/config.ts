@@ -57,10 +57,10 @@ export const CONFIG = {
     maxBackoffTime: 30000
   },
 
-  // Blockchain Configuration
+  // Blockchain Configuration (rpcUrl: set via RPC_URL env or encrypted keys from setup)
   blockchain: {
     chainId: 137,
-    rpcUrl: 'https://polygon-rpc.com',
+    rpcUrl: '',
     gasLimit: 200000,
     confirmations: 1
   },
