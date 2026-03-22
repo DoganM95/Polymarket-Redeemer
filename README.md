@@ -49,7 +49,7 @@ Perfect for Polymarket traders who want to **automate withdrawals** and **claim 
 - [Installation](#-installation)
 - [Quick Start](#-quick-start)
 - [Usage](#-usage)
-- [Configuration](#-configuration)
+- [Configuration](#-configuration) (includes [Polygon RPC](#polygon-rpc-endpoint-setup-wizard))
 - [How It Works](#-how-it-works)
 - [Running as a Service](#-running-as-a-service)
 - [Troubleshooting](#-troubleshooting)
@@ -88,10 +88,11 @@ Before you begin, ensure you have the following installed:
 
 ### Getting Your Credentials
 
-You'll need 5 pieces of information:
+You'll need 6 pieces of information:
 
 | Credential | Where to Find It |
 |------------|------------------|
+| **Polygon PoS RPC URL** | A **HTTPS** JSON-RPC endpoint for Polygon mainnet (chain ID 137). Public endpoints like `polygon-rpc.com` are **deprecated**—use an [infrastructure provider](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers) (e.g. Alchemy, Infura, QuickNode) and paste the HTTPS URL the wizard asks for. See [Polygon RPC endpoint (setup wizard)](#polygon-rpc-endpoint-setup-wizard) below. |
 | **Private Key** | Export from your wallet app (MetaMask, Coinbase Wallet, etc.) or Polymarket account settings (if using custodial wallet). This is the EOA wallet linked to your Polymarket account. |
 | **Proxy Wallet Address (Funder Address)** | Your Polymarket "Funder Address" - visible in your Polymarket deposit/withdraw page or account settings. This is the address where your Polymarket positions are held. |
 | **Builder API Key** | [Polymarket Settings → Builder Codes](https://polymarket.com/settings?tab=builder) - Create a new API key |
@@ -154,16 +155,29 @@ npx tsx src/redeem.ts --reset
 
 > ⚠️ **Note**: Key setup and reset must be done using Node.js/npm commands. The Python CLI is only for running redemptions with interval scheduling.
 
-The wizard will prompt you for:
+The wizard will prompt you for (in this order):
 
 | Prompt | What to Enter |
 |--------|---------------|
+| **Polygon PoS RPC URL** | The **HTTPS** RPC URL from your provider (must start with `https://`). The CLI prints a link to the official [Polygon PoS RPC infrastructure providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers) list—open it, pick a provider, create a Polygon **mainnet** endpoint, and paste the URL here. Invalid URLs are rejected until you enter a valid one. |
 | Wallet private key | Your EOA private key - export from your wallet (MetaMask, Coinbase Wallet, etc.) or Polymarket account if using custodial wallet. Starts with `0x`. |
 | Proxy wallet address | Your Polymarket Funder Address - the address where your positions are held. Find it in Polymarket deposit/withdraw settings. Starts with `0x`. |
 | Builder API key | From [Polymarket Builder Codes](https://polymarket.com/settings?tab=builder) |
 | Builder API secret | The secret shown when you created the API key |
 | Builder API passphrase | The passphrase you set when creating the API key |
 | Encryption password | **Create a strong password** - you'll need this to run redemptions |
+
+**Pasting in Windows CMD:** If **Ctrl+V** does nothing, try **Shift+Insert**, **right-click** paste, or copy the value and type **`@paste`** then Enter (uses the clipboard on Windows).
+
+### Polygon RPC endpoint (setup wizard)
+
+The tool talks to **Polygon PoS** (chain ID **137**) for wallet / viem operations. You must supply a working **HTTPS JSON-RPC** URL.
+
+1. **Why not a default URL?** The old public endpoint **polygon-rpc.com** is [deprecated](https://polygon-rpc.com/) (see Polygon’s notice). This project no longer ships a shared default—you choose a provider.
+2. **Where to get a URL:** Use Polygon’s documentation: **[RPC endpoints → Infrastructure providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers)**. Sign up with any listed provider, create a **Polygon mainnet** (PoS) HTTPS endpoint, and copy the full URL (often looks like `https://polygon-mainnet.g.alchemy.com/v2/...` or similar).
+3. **During setup:** The wizard shows that link, then asks: **“Enter your Polygon PoS RPC URL (https://...)”**. The URL is stored **inside** your encrypted `.encrypted_keys` file with your other setup data.
+4. **Override with environment:** Set **`RPC_URL`** to a HTTPS URL if you want to override the saved value (useful for CI, scripts, or switching providers without re-running setup).
+5. **Older installs:** If you set up before RPC was stored in the key file, either set **`RPC_URL`** in the environment or run **`npm run reset`** / **`npx tsx src/redeem.ts --reset`** to run the wizard again and save an RPC URL.
 
 > 🔐 **Security**: Your credentials are encrypted with AES-256-GCM and stored in `.encrypted_keys`. 
 > - **One-time mode**: Password prompted each run
@@ -418,9 +432,11 @@ These environment variables can optionally override default settings:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `RPC_URL` | Polygon PoS HTTPS RPC (optional if saved during `--setup`) | _(see [Polygon RPC providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers))_ |
+| `RPC_URL` | Polygon PoS **HTTPS** JSON-RPC URL. If set, it **overrides** the RPC URL saved during `--setup`. If unset, the URL from setup (in `.encrypted_keys`) is used. Required in some form for redemption—see [Polygon RPC endpoint (setup wizard)](#polygon-rpc-endpoint-setup-wizard). | _(none; must come from setup or this variable)_ |
 | `LOG_LEVEL` | Logging level (ERROR, WARN, INFO, DEBUG) | `INFO` |
 | `MAX_CONCURRENT_REDEMPTIONS` | Max parallel redemptions | `3` |
+
+**Provider list (pick one and use their Polygon mainnet HTTPS URL):** [Polygon PoS — infrastructure providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers).
 
 ### File Structure
 
@@ -603,6 +619,12 @@ stdout_logfile=/var/log/polymarket-gasless-redeem-cli.out.log
 - Follow the setup wizard to enter your wallet and API credentials
 - Create a strong password to encrypt your keys
 - Note: Python CLI doesn't support setup - use Node.js/npm for key management
+
+#### ❌ "Polygon RPC URL is not configured"
+
+**Solution:**
+- Set the **`RPC_URL`** environment variable to a valid **HTTPS** Polygon mainnet JSON-RPC URL from an [infrastructure provider](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers), **or**
+- Run **`npm run reset`** / **`npx tsx src/redeem.ts --reset`** and complete the wizard so an RPC URL is saved with your encrypted keys.
 
 #### ❌ "Invalid password or corrupted key file"
 
