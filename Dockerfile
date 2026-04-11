@@ -16,5 +16,8 @@ RUN npm install
 COPY config.js entrypoint.sh keyManager.js rateLimiter.js redeem_cli.py redeem.js requirements.txt tsconfig.json utils.js ./
 COPY src/ ./src
 
+# Make entrypoint executable
+RUN chmod +x entrypoint.sh
+
 # Run app
 ENTRYPOINT [ "./entrypoint.sh" ]
