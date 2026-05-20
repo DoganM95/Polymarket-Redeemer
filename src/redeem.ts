@@ -5,6 +5,7 @@
  * Usage:
  *   npx tsx src/redeem.ts          # Redeem all positions
  *   npx tsx src/redeem.ts --check  # Just check, don't redeem
+ *   npx tsx src/redeem.ts --collateral usdce  # Redeem with USDC.e collateral
  *   npx tsx src/redeem.ts --setup  # Setup encrypted key storage
  *   npx tsx src/redeem.ts --reset  # Reset keys and run setup
  *   npx tsx src/redeem.ts --help  # Show help message
@@ -15,7 +16,7 @@
  */
 function showHelp(): void {
   console.log(`
-Polymarket Gasless Redemption CLI v2.0
+Polymarket Gasless Redemption CLI v2.1.0
 =======================================
 
 USAGE:
@@ -24,14 +25,29 @@ USAGE:
 
 OPTIONS:
   --check          Check for redeemable positions without redeeming
+  --collateral     Redemption route: pusd V2 adapters or usdce legacy route (default: pusd)
+  --wallet-mode    Wallet execution mode: proxy, safe, or deposit (default: proxy)
+  --wallet-address Wallet/funder address override; deposit mode derives it when omitted
   --setup          Setup encrypted key storage (first-time setup)
   --reset          Reset and reconfigure encrypted keys
   --help, -h       Show this help message
 
 EXAMPLES:
-  # One-time redemption
+  # Existing proxy wallet, pUSD V2 route
   npm run redeem
   npx tsx src/redeem.ts
+
+  # Existing Safe wallet
+  npx tsx src/redeem.ts --wallet-mode safe
+
+  # New deposit wallet
+  npx tsx src/redeem.ts --wallet-mode deposit
+
+  # Explicit wallet address override
+  npx tsx src/redeem.ts --wallet-mode deposit --wallet-address 0x...
+
+  # One-time redemption with USDC.e collateral
+  npx tsx src/redeem.ts --collateral usdce
 
   # Check positions without redeeming
   npm run check
@@ -52,6 +68,9 @@ SETUP:
 ENVIRONMENT VARIABLES:
   REDEEM_PASSWORD    Encryption password (for automated scripts)
   RPC_URL            Polygon PoS HTTPS RPC (overrides URL saved at setup; optional if stored in keys)
+  REDEEM_COLLATERAL  Redemption route: pusd or usdce (optional)
+  REDEEM_WALLET_MODE     Wallet execution mode: proxy, safe, or deposit
+  REDEEM_WALLET_ADDRESS  Optional wallet/funder address override
   LOG_LEVEL          Logging level: ERROR, WARN, INFO, DEBUG (optional)
 
 For more information, see README.md
@@ -59,17 +78,28 @@ For more information, see README.md
   process.exit(0);
 }
 
-import { createWalletClient, http, type Hex, type WalletClient, type Account } from 'viem';
+import { createWalletClient, http, type Hex, type WalletClient, type Account, type Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { polygon } from 'viem/chains';
-import { RelayClient, RelayerTxType } from '@polymarket/builder-relayer-client';
-import { BuilderConfig, type BuilderApiKeyCreds } from '@polymarket/builder-signing-sdk';
+import type { RelayClient } from '@polymarket/builder-relayer-client';
+import type { BuilderApiKeyCreds } from '@polymarket/builder-signing-sdk';
 
 import keyManager from './keyManager.js';
 import { CONFIG, validateConfig, loadEnvironmentOverrides } from './config.js';
 import { globalRateLimiter } from './rateLimiter.js';
-import { TransactionManager, TransactionState } from './transactionManager.js';
+import { TransactionState } from './transactionManager.js';
 import { createCtfRedeemTx, createNegRiskRedeemTx, calculateRedeemAmounts } from './transactions.js';
+import { resolveCollateralCurrency, type SelectedCollateral } from './collateral.js';
+import {
+  createRelayClient,
+  executeRedemptionTransactions,
+  resolveExecutionWalletAddress
+} from './relayExecution.js';
+import {
+  resolveWalletAddressOverride,
+  resolveWalletMode,
+  type SelectedWalletMode
+} from './walletMode.js';
 import { retryWithBackoff, validators, logger, withTimeout, formatCurrency, sleep } from './utils.js';
 import type { Position, RawPositionData, MainResult, RedemptionResult, EncryptedKeys } from './types.js';
 
@@ -225,8 +255,28 @@ async function main(): Promise<MainResult> {
   const checkOnly = process.argv.includes('--check');
   const setupMode = process.argv.includes('--setup');
   const resetMode = process.argv.includes('--reset');
+  let selectedCollateral: SelectedCollateral;
+  let selectedWalletMode: SelectedWalletMode;
+  let walletAddressOverride: Address | null;
 
-  console.log('Polymarket Gasless Redemption v2.0 (TypeScript + Viem)');
+  try {
+    selectedCollateral = resolveCollateralCurrency();
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[ERROR] Collateral configuration error:', errorMsg);
+    process.exit(1);
+  }
+
+  try {
+    selectedWalletMode = resolveWalletMode();
+    walletAddressOverride = resolveWalletAddressOverride();
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[ERROR] Wallet configuration error:', errorMsg);
+    process.exit(1);
+  }
+
+  console.log('Polymarket Gasless Redemption v2.1.0 (TypeScript + Viem)');
   console.log('='.repeat(55));
 
   // Reset mode - delete existing keys and run setup
@@ -325,14 +375,58 @@ async function main(): Promise<MainResult> {
     process.exit(1);
   }
 
+  // Initialize RelayClient before fetching positions so deposit wallet mode can derive its wallet address.
+  console.log('\nInitializing gasless relayer...');
+
+  let client: RelayClient;
+  try {
+    const builderCreds: BuilderApiKeyCreds = {
+      key: keys.apiKey,
+      secret: keys.apiSecret,
+      passphrase: keys.apiPassphrase
+    };
+
+    client = createRelayClient({
+      walletMode: selectedWalletMode,
+      wallet,
+      builderCreds
+    });
+
+    logger.info('Relayer client initialized', { walletMode: selectedWalletMode.mode });
+    console.log('[OK] Relayer ready\n');
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[ERROR] Failed to initialize relayer:', errorMsg);
+    process.exit(1);
+  }
+
+  let executionWalletAddress: Address;
+  try {
+    executionWalletAddress = await resolveExecutionWalletAddress({
+      client,
+      walletMode: selectedWalletMode,
+      savedWalletAddress: keys.funderAddress,
+      ownerAddress: account.address,
+      overrideWalletAddress: walletAddressOverride
+    });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[ERROR] Failed to resolve redeem wallet:', errorMsg);
+    process.exit(1);
+  }
+
   console.log(`EOA: ${account.address}`);
-  console.log(`Proxy Wallet: ${keys.funderAddress}`);
+  console.log(`Wallet Mode: ${selectedWalletMode.label}`);
+  console.log(`Redeem Wallet: ${executionWalletAddress}`);
+  console.log(`Collateral: ${selectedCollateral.label} (${selectedCollateral.collateralToken})`);
+  console.log(`Standard redeem target: ${selectedCollateral.standardTarget}`);
+  console.log(`NegRisk redeem target: ${selectedCollateral.negRiskTarget}`);
 
   // Get redeemable positions with retry logic
   console.log('\nFetching redeemable positions...');
   let positions: Position[];
   try {
-    positions = await getRedeemablePositions(keys.funderAddress);
+    positions = await getRedeemablePositions(executionWalletAddress);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[ERROR] Failed to fetch positions:', errorMsg);
@@ -367,40 +461,6 @@ async function main(): Promise<MainResult> {
     return { redeemed: 0, total: positions.length, checkOnly: true };
   }
 
-  // Initialize RelayClient with enhanced error handling
-  console.log('\nInitializing gasless relayer...');
-
-  let client: RelayClient;
-  let txManager: TransactionManager;
-  try {
-    const builderCreds: BuilderApiKeyCreds = {
-      key: keys.apiKey,
-      secret: keys.apiSecret,
-      passphrase: keys.apiPassphrase
-    };
-
-    const builderConfig = new BuilderConfig({
-      localBuilderCreds: builderCreds
-    });
-
-    client = new RelayClient(
-      CONFIG.api.relayerUrl,
-      CONFIG.blockchain.chainId,
-      wallet,
-      builderConfig,
-      RelayerTxType.PROXY
-    );
-
-    txManager = new TransactionManager(client);
-
-    logger.info('Relayer client initialized');
-    console.log('[OK] Relayer ready\n');
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[ERROR] Failed to initialize relayer:', errorMsg);
-    process.exit(1);
-  }
-
   // Redeem each condition with concurrency control
   const semaphore = new Semaphore(CONFIG.app.maxConcurrentRedemptions);
   const results: Promise<RedemptionResult>[] = [];
@@ -423,17 +483,23 @@ async function main(): Promise<MainResult> {
           // For negative risk markets, calculate amounts for each outcome
           const sizes = pos.outcomes.map(o => o.size);
           const amounts = calculateRedeemAmounts(sizes);
-          tx = createNegRiskRedeemTx(pos.conditionId, amounts);
+          tx = createNegRiskRedeemTx(pos.conditionId, amounts, selectedCollateral);
           console.log(`   NegRisk redeem, amounts: [${amounts.map(a => a.toString()).join(', ')}]`);
         } else {
           // CTF binary: redeem both outcomes at once
-          tx = createCtfRedeemTx(pos.conditionId);
-          console.log(`   CTF redeem (both outcomes)`);
+          tx = createCtfRedeemTx(pos.conditionId, selectedCollateral);
+          console.log(`   CTF redeem (both outcomes), collateral: ${selectedCollateral.label}`);
         }
 
         // Execute via relayer with timeout
         const executeWithTimeout = withTimeout(
-          client.execute([tx], `Redeem: ${title}`),
+          executeRedemptionTransactions({
+            client,
+            walletMode: selectedWalletMode,
+            walletAddress: executionWalletAddress,
+            transactions: [tx],
+            metadata: `Redeem: ${title}`
+          }),
           CONFIG.app.redeemTimeout * 1000,
           'Relayer execution timed out'
         );
