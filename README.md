@@ -51,6 +51,9 @@ The wizard asks for:
 | Builder API passphrase | Passphrase for the API key. |
 | Encryption password | Used to unlock local encrypted credentials. |
 
+Need a Polygon RPC endpoint? Use Polygon's PoS RPC reference:
+https://docs.polygon.technology/pos/reference/rpc-endpoints#rpc-api-methods
+
 Credentials are stored in `.encrypted_keys` using AES-256-GCM encryption. The file is ignored by git.
 
 To reconfigure everything:
@@ -251,6 +254,9 @@ npm run check -- --collateral pusd
 Then redeem with the one that matches your account.
 
 ### Polygon RPC URL is not configured
+
+The tool runs on Polygon PoS mainnet, chain ID 137. Polygon's RPC reference is here:
+https://docs.polygon.technology/pos/reference/rpc-endpoints#rpc-api-methods
 
 Either run setup/reset again:
 
