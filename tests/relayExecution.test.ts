@@ -158,6 +158,6 @@ test('executeRedemptionTransactions uses deposit wallet batch for deposit mode',
       }
     ],
     walletAddress: DERIVED_DEPOSIT_WALLET,
-    deadline: '1000600'
+    deadline: '1600'
   });
 });
