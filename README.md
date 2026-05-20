@@ -9,7 +9,7 @@ This project is a community tool. It is not affiliated with, endorsed by, or mai
 - Finds redeemable Polymarket positions for your proxy wallet.
 - Builds CTF or NegRisk redemption transactions.
 - Submits transactions through the Polymarket Builder Relayer.
-- Supports both current pUSD collateral and legacy USDC.e collateral for standard CTF redemptions.
+- Supports the current pUSD V2 adapter route and the legacy USDC.e direct route.
 - Provides a Python wrapper for interval-based automation.
 
 ## Requirements
@@ -62,18 +62,25 @@ To reconfigure everything:
 npm run reset
 ```
 
-## Pick The Right Collateral
+## Pick The Right Route
 
-Standard CTF redemptions need a collateral token address.
+Polymarket V2 uses pUSD. This tool now defaults to the pUSD adapter route for both standard CTF and negative-risk redemptions.
 
-| Use case | Option |
-| --- | --- |
-| Current Polymarket pUSD accounts | omit the flag, or use `--collateral pusd` |
-| Accounts still redeeming with USDC.e | use `--collateral usdce` |
+| Route | Option | Standard target | Negative-risk target |
+| --- | --- | --- | --- |
+| Current pUSD V2 route | omit the flag, or use `--collateral pusd` | `CtfCollateralAdapter` | `NegRiskCtfCollateralAdapter` |
+| Legacy USDC.e route | `--collateral usdce` | `CTF` | `NegRiskAdapter` |
 
-Default is pUSD.
+Use the legacy USDC.e route only if your account still fails through the default pUSD route.
 
-If your account is still USDC.e, use these commands:
+Default pUSD commands:
+
+```bash
+npm run check
+npm run redeem
+```
+
+Legacy USDC.e commands:
 
 ```bash
 npm run check -- --collateral usdce
@@ -82,9 +89,11 @@ npm run redeem -- --collateral usdce
 
 The `--` after `npm run ...` is required. It passes the remaining arguments into the TypeScript CLI.
 
-Direct TypeScript commands also work:
+Direct TypeScript commands:
 
 ```bash
+npx tsx src/redeem.ts --check
+npx tsx src/redeem.ts
 npx tsx src/redeem.ts --check --collateral usdce
 npx tsx src/redeem.ts --collateral usdce
 ```
@@ -92,6 +101,9 @@ npx tsx src/redeem.ts --collateral usdce
 Python wrapper:
 
 ```bash
+python redeem_cli.py --check
+python redeem_cli.py --once
+python redeem_cli.py --interval 15
 python redeem_cli.py --check --collateral usdce
 python redeem_cli.py --once --collateral usdce
 python redeem_cli.py --interval 15 --collateral usdce
@@ -110,6 +122,12 @@ Windows PowerShell:
 ```powershell
 $env:REDEEM_COLLATERAL="usdce"
 ```
+
+Useful Polymarket references:
+
+- Redeem docs: https://docs.polymarket.com/trading/ctf/redeem
+- V2 migration: https://docs.polymarket.com/v2-migration
+- Contract addresses: https://docs.polymarket.com/resources/contracts
 
 ## Safe Test Run
 
@@ -242,16 +260,16 @@ Run:
 npm run setup
 ```
 
-### Wrong collateral / redemption fails
+### Wrong route / redemption fails
 
-Try the other collateral in check mode first:
+Try the other route in check mode first:
 
 ```bash
+npm run check
 npm run check -- --collateral usdce
-npm run check -- --collateral pusd
 ```
 
-Then redeem with the one that matches your account.
+Then redeem with the route that matches your account. The default pUSD route calls the Polymarket V2 collateral adapters. The USDC.e route is the legacy fallback.
 
 ### Polygon RPC URL is not configured
 
@@ -303,22 +321,28 @@ Build TypeScript:
 npm run build
 ```
 
-Verify collateral encoding manually:
+Preview route encoding manually:
 
 ```bash
-node --import tsx -e "import { decodeFunctionData } from 'viem'; import { CONFIG } from './src/config.ts'; import { createCtfRedeemTx } from './src/transactions.ts'; const tx=createCtfRedeemTx('0x1111111111111111111111111111111111111111111111111111111111111111', CONFIG.contracts.usdce); console.log(decodeFunctionData({ abi: CONFIG.abis.ctfRedeem, data: tx.data }).args[0])"
+node --import tsx -e "import { decodeFunctionData } from 'viem'; import { CONFIG } from './src/config.ts'; import { resolveCollateralCurrency } from './src/collateral.ts'; import { createCtfRedeemTx } from './src/transactions.ts'; const route=resolveCollateralCurrency(['--collateral','pusd']); const tx=createCtfRedeemTx('0x1111111111111111111111111111111111111111111111111111111111111111', route); const decoded=decodeFunctionData({ abi: CONFIG.abis.ctfCollateralAdapterRedeem, data: tx.data }); console.log({ target: tx.to, collateral: decoded.args[0] });"
 ```
 
-Expected USDC.e output:
+Expected pUSD output:
 
 ```text
-0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+{
+  target: '0xAdA100Db00Ca00073811820692005400218FcE1f',
+  collateral: '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB'
+}
 ```
 
-Expected pUSD output when using default collateral:
+Expected USDC.e output when using `--collateral usdce`:
 
 ```text
-0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB
+{
+  target: '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045',
+  collateral: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
+}
 ```
 
 ## Security Notes

@@ -132,12 +132,15 @@ export interface AppConfig {
   };
   contracts: {
     ctf: Address;
+    ctfCollateralAdapter: Address;
     pusd: Address;
     usdce: Address;
     negRiskAdapter: Address;
+    negRiskCtfCollateralAdapter: Address;
   };
   abis: {
     ctfRedeem: readonly AbiItem[];
+    ctfCollateralAdapterRedeem: readonly AbiItem[];
     negRiskRedeem: readonly AbiItem[];
   };
   logging: {

@@ -6,19 +6,25 @@ export type CollateralCurrency = 'pusd' | 'usdce';
 export interface SelectedCollateral {
   currency: CollateralCurrency;
   label: 'pUSD' | 'USDC.e';
-  address: Address;
+  collateralToken: Address;
+  standardTarget: Address;
+  negRiskTarget: Address;
 }
 
 const COLLATERALS: Record<CollateralCurrency, SelectedCollateral> = {
   pusd: {
     currency: 'pusd',
     label: 'pUSD',
-    address: CONFIG.contracts.pusd
+    collateralToken: CONFIG.contracts.pusd,
+    standardTarget: CONFIG.contracts.ctfCollateralAdapter,
+    negRiskTarget: CONFIG.contracts.negRiskCtfCollateralAdapter
   },
   usdce: {
     currency: 'usdce',
     label: 'USDC.e',
-    address: CONFIG.contracts.usdce
+    collateralToken: CONFIG.contracts.usdce,
+    standardTarget: CONFIG.contracts.ctf,
+    negRiskTarget: CONFIG.contracts.negRiskAdapter
   }
 };
 

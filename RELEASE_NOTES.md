@@ -1,5 +1,23 @@
 # Release Notes
 
+## v2.0.2
+
+### Changed
+
+- Routed default pUSD redemptions through Polymarket V2 collateral adapters:
+  - standard CTF: `CtfCollateralAdapter`
+  - negative-risk: `NegRiskCtfCollateralAdapter`
+- Kept `--collateral usdce` as the legacy direct route:
+  - standard CTF: `CTF`
+  - negative-risk: `NegRiskAdapter`
+- Added route-preview tests that decode calldata and assert both target contracts and collateral arguments without submitting transactions.
+- Updated README guidance and Polymarket V2 documentation links.
+
+### Verification
+
+- `npm test`
+- `npm run build`
+
 ## v2.0.1
 
 ### Changed

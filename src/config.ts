@@ -75,14 +75,17 @@ export const CONFIG = {
   // Contract Addresses (Polygon mainnet)
   contracts: {
     ctf: '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045' as Address,
+    ctfCollateralAdapter: '0xAdA100Db00Ca00073811820692005400218FcE1f' as Address,
     pusd: '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB' as Address,
     usdce: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174' as Address,
-    negRiskAdapter: '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296' as Address
+    negRiskAdapter: '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296' as Address,
+    negRiskCtfCollateralAdapter: '0xadA2005600Dec949baf300f4C6120000bDB6eAab' as Address
   },
 
   // ABIs with const assertion for type inference
   abis: {
     ctfRedeem: ctfRedeemAbi,
+    ctfCollateralAdapterRedeem: ctfRedeemAbi,
     negRiskRedeem: negRiskRedeemAbi
   },
 

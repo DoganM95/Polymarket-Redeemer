@@ -16,7 +16,7 @@
  */
 function showHelp(): void {
   console.log(`
-Polymarket Gasless Redemption CLI v2.0.1
+Polymarket Gasless Redemption CLI v2.0.2
 =======================================
 
 USAGE:
@@ -25,7 +25,7 @@ USAGE:
 
 OPTIONS:
   --check          Check for redeemable positions without redeeming
-  --collateral     Collateral for standard CTF redemptions: pusd or usdce (default: pusd)
+  --collateral     Redemption route: pusd V2 adapters or usdce legacy route (default: pusd)
   --setup          Setup encrypted key storage (first-time setup)
   --reset          Reset and reconfigure encrypted keys
   --help, -h       Show this help message
@@ -57,7 +57,7 @@ SETUP:
 ENVIRONMENT VARIABLES:
   REDEEM_PASSWORD    Encryption password (for automated scripts)
   RPC_URL            Polygon PoS HTTPS RPC (overrides URL saved at setup; optional if stored in keys)
-  REDEEM_COLLATERAL  Collateral for standard CTF redemptions: pusd or usdce (optional)
+  REDEEM_COLLATERAL  Redemption route: pusd or usdce (optional)
   LOG_LEVEL          Logging level: ERROR, WARN, INFO, DEBUG (optional)
 
 For more information, see README.md
@@ -242,7 +242,7 @@ async function main(): Promise<MainResult> {
     process.exit(1);
   }
 
-  console.log('Polymarket Gasless Redemption v2.0.1 (TypeScript + Viem)');
+  console.log('Polymarket Gasless Redemption v2.0.2 (TypeScript + Viem)');
   console.log('='.repeat(55));
 
   // Reset mode - delete existing keys and run setup
@@ -343,7 +343,9 @@ async function main(): Promise<MainResult> {
 
   console.log(`EOA: ${account.address}`);
   console.log(`Proxy Wallet: ${keys.funderAddress}`);
-  console.log(`Collateral: ${selectedCollateral.label} (${selectedCollateral.address})`);
+  console.log(`Collateral: ${selectedCollateral.label} (${selectedCollateral.collateralToken})`);
+  console.log(`Standard redeem target: ${selectedCollateral.standardTarget}`);
+  console.log(`NegRisk redeem target: ${selectedCollateral.negRiskTarget}`);
 
   // Get redeemable positions with retry logic
   console.log('\nFetching redeemable positions...');
@@ -440,11 +442,11 @@ async function main(): Promise<MainResult> {
           // For negative risk markets, calculate amounts for each outcome
           const sizes = pos.outcomes.map(o => o.size);
           const amounts = calculateRedeemAmounts(sizes);
-          tx = createNegRiskRedeemTx(pos.conditionId, amounts);
+          tx = createNegRiskRedeemTx(pos.conditionId, amounts, selectedCollateral);
           console.log(`   NegRisk redeem, amounts: [${amounts.map(a => a.toString()).join(', ')}]`);
         } else {
           // CTF binary: redeem both outcomes at once
-          tx = createCtfRedeemTx(pos.conditionId, selectedCollateral.address);
+          tx = createCtfRedeemTx(pos.conditionId, selectedCollateral);
           console.log(`   CTF redeem (both outcomes), collateral: ${selectedCollateral.label}`);
         }
 

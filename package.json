@@ -1,6 +1,6 @@
 {
   "name": "polymarket-gasless-redeem-cli",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Gasless redemption CLI tool for Polymarket positions",
   "main": "dist/redeem.js",
   "type": "module",
