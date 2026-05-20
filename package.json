@@ -19,7 +19,7 @@
     "help": "tsx src/redeem.ts --help"
   },
   "dependencies": {
-    "@polymarket/builder-relayer-client": "^0.0.8",
+    "@polymarket/builder-relayer-client": "^0.0.9",
     "@polymarket/builder-signing-sdk": "^0.0.8",
     "viem": "^2.21.0"
   },
