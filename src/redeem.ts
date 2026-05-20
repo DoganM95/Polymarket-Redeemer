@@ -16,7 +16,7 @@
  */
 function showHelp(): void {
   console.log(`
-Polymarket Gasless Redemption CLI v2.0.2
+Polymarket Gasless Redemption CLI v2.1.0
 =======================================
 
 USAGE:
@@ -276,7 +276,7 @@ async function main(): Promise<MainResult> {
     process.exit(1);
   }
 
-  console.log('Polymarket Gasless Redemption v2.0.2 (TypeScript + Viem)');
+  console.log('Polymarket Gasless Redemption v2.1.0 (TypeScript + Viem)');
   console.log('='.repeat(55));
 
   // Reset mode - delete existing keys and run setup
