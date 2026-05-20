@@ -6,9 +6,9 @@ This project is a community tool. It is not affiliated with, endorsed by, or mai
 
 ## What It Does
 
-- Finds redeemable Polymarket positions for your proxy wallet.
+- Finds redeemable Polymarket positions for your selected wallet.
 - Builds CTF or NegRisk redemption transactions.
-- Submits transactions through the Polymarket Builder Relayer.
+- Submits gasless redemptions through the Polymarket Builder Relayer using proxy, Safe, or deposit-wallet execution.
 - Supports the current pUSD V2 adapter route and the legacy USDC.e direct route.
 - Provides a Python wrapper for interval-based automation.
 
@@ -20,7 +20,7 @@ This project is a community tool. It is not affiliated with, endorsed by, or mai
 - A terminal: macOS/Linux shell (`zsh` or `bash`) or Windows PowerShell
 - Polygon PoS HTTPS RPC URL
 - Wallet private key for the EOA linked to your Polymarket account
-- Polymarket proxy wallet / funder address
+- Polymarket wallet/funder address for proxy or Safe mode. Deposit mode can derive the wallet address from your owner EOA.
 - Polymarket Builder API key, secret, and passphrase
 
 ## Install
@@ -45,7 +45,7 @@ The wizard asks for:
 | --- | --- |
 | Polygon PoS RPC URL | Must be HTTPS and for Polygon mainnet, chain ID 137. |
 | Wallet private key | EOA wallet linked to your Polymarket account. |
-| Proxy wallet address | Polymarket funder address where positions are held. |
+| Wallet/funder address | Proxy or Safe address where positions are held. For deposit wallet mode, this can be overridden or derived automatically. |
 | Builder API key | From Polymarket Builder Codes. |
 | Builder API secret | Shown when the API key is created. |
 | Builder API passphrase | Passphrase for the API key. |
@@ -62,7 +62,44 @@ To reconfigure everything:
 npm run reset
 ```
 
-## Pick The Right Route
+## Pick The Right Wallet Mode
+
+Wallet mode controls how the relayer submits the redemption transaction. It does not change the redemption calldata.
+
+| Wallet mode | Who should use it | Command | Position wallet |
+| --- | --- | --- | --- |
+| `proxy` | Existing Polymarket proxy wallet users | `npm run redeem` | Saved setup address or `--wallet-address` |
+| `safe` | Existing Gnosis Safe users | `npm run redeem -- --wallet-mode safe` | Saved setup address or `--wallet-address` |
+| `deposit` | New API users and new deposit-wallet accounts | `npm run redeem -- --wallet-mode deposit` | Derived from the owner EOA unless `--wallet-address` is set |
+
+Default is `proxy` to preserve existing setups.
+
+Use `deposit` if your account is a new Polymarket deposit-wallet account or your API integration uses `POLY_1271` / signature type `3`.
+
+Use `safe` only if your positions are held in a Gnosis Safe.
+
+Use `proxy` if you have the traditional Polymarket proxy wallet / funder address.
+
+Examples:
+
+```bash
+npm run check
+npm run check -- --wallet-mode safe
+npm run check -- --wallet-mode deposit
+npm run check -- --wallet-mode deposit --wallet-address 0xYourDepositWallet
+```
+
+Python examples:
+
+```bash
+python redeem_cli.py --check
+python redeem_cli.py --check --wallet-mode safe
+python redeem_cli.py --check --wallet-mode deposit
+```
+
+## Pick The Right Collateral Route
+
+Collateral route controls which redeem contract receives the calldata.
 
 Polymarket V2 uses pUSD. This tool now defaults to the pUSD adapter route for both standard CTF and negative-risk redemptions.
 
@@ -104,6 +141,8 @@ Python wrapper:
 python redeem_cli.py --check
 python redeem_cli.py --once
 python redeem_cli.py --interval 15
+python redeem_cli.py --check --wallet-mode deposit
+python redeem_cli.py --once --wallet-mode safe
 python redeem_cli.py --check --collateral usdce
 python redeem_cli.py --once --collateral usdce
 python redeem_cli.py --interval 15 --collateral usdce
@@ -213,13 +252,18 @@ Only use `REDEEM_PASSWORD` on machines and shells you trust.
 | Reset credentials | `npm run reset` |
 | Check positions | `npm run check` |
 | Check positions with USDC.e | `npm run check -- --collateral usdce` |
+| Check Safe wallet | `npm run check -- --wallet-mode safe` |
+| Check deposit wallet | `npm run check -- --wallet-mode deposit` |
 | Redeem once | `npm run redeem` |
 | Redeem once with USDC.e | `npm run redeem -- --collateral usdce` |
+| Redeem Safe wallet | `npm run redeem -- --wallet-mode safe` |
+| Redeem deposit wallet | `npm run redeem -- --wallet-mode deposit` |
 | Show Node help | `npm run help` |
 | Python check | `python redeem_cli.py --check` |
 | Python redeem once | `python redeem_cli.py --once` |
 | Python interval | `python redeem_cli.py --interval 15` |
 | Python interval with USDC.e | `python redeem_cli.py --interval 15 --collateral usdce` |
+| Python deposit interval | `python redeem_cli.py --interval 15 --wallet-mode deposit` |
 
 ## Environment Variables
 
@@ -227,6 +271,8 @@ Only use `REDEEM_PASSWORD` on machines and shells you trust.
 | --- | --- |
 | `REDEEM_PASSWORD` | Encryption password for unattended runs. |
 | `REDEEM_COLLATERAL` | `pusd` or `usdce`; default is `pusd`. CLI `--collateral` overrides it. |
+| `REDEEM_WALLET_MODE` | `proxy`, `safe`, or `deposit`; default is `proxy`. CLI `--wallet-mode` overrides it. |
+| `REDEEM_WALLET_ADDRESS` | Optional wallet/funder address override. Deposit mode derives the address when this is unset. |
 | `RPC_URL` | Optional Polygon PoS HTTPS RPC override. If unset, the setup-saved RPC URL is used. |
 | `LOG_LEVEL` | `ERROR`, `WARN`, `INFO`, or `DEBUG`. Default is `INFO`. |
 | `MAX_CONCURRENT_REDEMPTIONS` | Max parallel redemptions. Default is `3`. |
@@ -238,6 +284,8 @@ The maintained implementation is TypeScript:
 - `src/redeem.ts` is the main CLI.
 - `src/transactions.ts` builds CTF and NegRisk redemption transactions.
 - `src/collateral.ts` resolves `pusd` vs `usdce`.
+- `src/walletMode.ts` resolves `proxy`, `safe`, or `deposit`.
+- `src/relayExecution.ts` submits with the correct relayer execution method.
 - `redeem_cli.py` is a Python wrapper that calls `npx tsx src/redeem.ts`.
 
 Root-level JavaScript snapshots were removed. Use the npm, npx, or Python commands above.
@@ -247,7 +295,9 @@ Transaction flow:
 1. Fetch redeemable positions from `https://data-api.polymarket.com`.
 2. Group positions by condition ID.
 3. Build a CTF or NegRisk redemption transaction.
-4. Submit through `https://relayer-v2.polymarket.com`.
+4. Submit through `https://relayer-v2.polymarket.com` using the selected wallet mode:
+   - `proxy` and `safe`: relayer `execute()`
+   - `deposit`: relayer `WALLET` batch
 5. Wait for confirmation and print PolygonScan links.
 
 ## Troubleshooting
@@ -270,6 +320,24 @@ npm run check -- --collateral usdce
 ```
 
 Then redeem with the route that matches your account. The default pUSD route calls the Polymarket V2 collateral adapters. The USDC.e route is the legacy fallback.
+
+### Wrong wallet mode / no positions found
+
+Run check mode with each plausible wallet mode:
+
+```bash
+npm run check
+npm run check -- --wallet-mode safe
+npm run check -- --wallet-mode deposit
+```
+
+If deposit mode derives a wallet address that does not match your Polymarket account, pass the address explicitly:
+
+```bash
+npm run check -- --wallet-mode deposit --wallet-address 0xYourDepositWallet
+```
+
+Proxy and Safe modes use the wallet/funder address saved during setup unless `--wallet-address` is provided.
 
 ### Polygon RPC URL is not configured
 
