@@ -1,6 +1,6 @@
 {
   "name": "polymarket-gasless-redeem-cli",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Gasless redemption CLI tool for Polymarket positions",
   "main": "dist/redeem.js",
   "type": "module",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "node --import tsx --test tests/**/*.test.ts",
     "setup": "tsx src/redeem.ts --setup",
     "reset": "tsx src/redeem.ts --reset",
     "check": "tsx src/redeem.ts --check",

@@ -132,7 +132,8 @@ export interface AppConfig {
   };
   contracts: {
     ctf: Address;
-    usdc: Address;
+    pusd: Address;
+    usdce: Address;
     negRiskAdapter: Address;
   };
   abis: {

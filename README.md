@@ -1,909 +1,327 @@
-# 🔄 Polymarket Redeem Bot - Automated Gasless Token Redemption CLI
+# Polymarket Gasless Redeem CLI
 
-> **Polymarket Trading Bot** for automatically redeeming winning positions and claiming USDC payouts. This open-source **Polymarket CLI tool** uses the **Polymarket Redeem API** with **gasless transactions** on Polygon — zero gas fees, fully automated.
+Redeem resolved Polymarket positions through Polymarket's gasless relayer on Polygon.
 
-**Keywords:** Polymarket API, Polymarket redeem, Polymarket trading bot, Polymarket CLI, Polymarket automation, Polymarket withdraw winnings, Polymarket claim positions, prediction market bot, Polygon gasless transactions, Polymarket Builder API, CTF token redemption
+This project is a community tool. It is not affiliated with, endorsed by, or maintained by Polymarket. Use it at your own risk, verify transactions on PolygonScan, and test with small amounts first.
 
----
+## What It Does
 
-## 🎯 What This Tool Does
+- Finds redeemable Polymarket positions for your proxy wallet.
+- Builds CTF or NegRisk redemption transactions.
+- Submits transactions through the Polymarket Builder Relayer.
+- Supports both current pUSD collateral and legacy USDC.e collateral for standard CTF redemptions.
+- Provides a Python wrapper for interval-based automation.
 
-This is a **Polymarket redemption bot** that automatically:
-- ✅ **Claims your winnings** from resolved prediction markets
-- ✅ **Redeems CTF tokens** (Conditional Token Framework) to USDC
-- ✅ **Uses gasless transactions** — you pay zero gas fees
-- ✅ **Runs automatically** on a schedule (every 15 min, hourly, etc.)
-- ✅ **Works with both binary and negative risk markets**
+## Requirements
 
-Perfect for Polymarket traders who want to **automate withdrawals** and **claim winnings automatically** without manual intervention.
+- Node.js 18+
+- npm
+- Python 3.8+ only if you want `--interval` scheduling
+- A terminal: macOS/Linux shell (`zsh` or `bash`) or Windows PowerShell
+- Polygon PoS HTTPS RPC URL
+- Wallet private key for the EOA linked to your Polymarket account
+- Polymarket proxy wallet / funder address
+- Polymarket Builder API key, secret, and passphrase
 
----
-
-## ⚠️ Disclaimer
-
-**This is NOT an official Polymarket library.** This project (`polymarket-gasless-redeem-cli`) is an independent, community-developed **Polymarket trading tool** and is not affiliated with, endorsed by, or maintained by Polymarket.
-
-**Important Notes:**
-- This CLI bot interacts with **Polymarket's Builder Relayer API** and **Data API**, which may change without notice
-- The code has been developed based on public **Polymarket API documentation**, but has not been officially reviewed or approved by Polymarket
-- API endpoints, authentication methods, or transaction formats may change, potentially breaking this tool
-- While the code includes security measures (encrypted key storage, input validation, rate limiting), users should review the code before use
-
-**Use at your own risk.** The author is not responsible for any issues, data loss, failed transactions, or problems arising from the use of this tool. Always verify transactions on PolygonScan and test with small amounts first.
-
----
-
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#-license)
-[![Polymarket](https://img.shields.io/badge/Polymarket-API-purple.svg)](https://docs.polymarket.com)
-[![Polygon](https://img.shields.io/badge/Polygon-Network-blueviolet.svg)](https://polygon.technology/)
-
----
-
-## 📋 Table of Contents
-
-- [What This Tool Does](#-what-this-tool-does)
-- [Features](#-features)
-- [Prerequisites](#-prerequisites)
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Usage](#-usage)
-- [Configuration](#-configuration) (includes [Polygon RPC](#polygon-rpc-endpoint-setup-wizard))
-- [How It Works](#-how-it-works)
-- [Running as a Service](#-running-as-a-service)
-- [Troubleshooting](#-troubleshooting)
-- [Security](#-security-considerations)
-- [FAQ](#-frequently-asked-questions)
-- [Contributing](#-contributing)
-- [License](#-license)
-
----
-
-## ✨ Features
-
-- 🚀 **Gasless Redemption** - Uses **Polymarket's Builder Relayer API** for zero-gas transactions on Polygon
-- 💰 **Automatic Withdrawals** - Claim your Polymarket winnings automatically
-- ⏰ **Scheduled Automation** - Run redemptions at configurable intervals (every 15 min, hourly, daily)
-- 🎯 **One-Time Mode** - Execute immediate redemption when you need it
-- 🔍 **Check Mode** - View redeemable positions without redeeming (dry run)
-- 💻 **CLI Interface** - Simple command-line tool with comprehensive help
-- 📊 **Transaction Logging** - Full history with PolygonScan links for verification
-- 🔒 **Secure Storage** - AES-256-GCM encrypted credential storage (not plaintext!)
-- 🌐 **Cross-Platform** - Works on Windows, Linux, and macOS
-- 🔄 **CTF & NegRisk Support** - Handles both binary markets and negative risk positions
-
----
-
-## 📦 Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- **Node.js 18+** and npm (required)
-- **Python 3.8+** (optional - only needed for `--interval` scheduling feature)
-- **Polymarket Builder API credentials** (API key, secret, and passphrase)
-- **Wallet private key** and **proxy wallet address** (Funder Address)
-
-> 💡 **Note**: Python is optional. If you only need one-time redemptions or prefer to use cron/Task Scheduler for automation, you can use Node.js alone.
-
-### Getting Your Credentials
-
-You'll need 6 pieces of information:
-
-| Credential | Where to Find It |
-|------------|------------------|
-| **Polygon PoS RPC URL** | A **HTTPS** JSON-RPC endpoint for Polygon mainnet (chain ID 137). Public endpoints like `polygon-rpc.com` are **deprecated**—use an [infrastructure provider](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers) (e.g. Alchemy, Infura, QuickNode) and paste the HTTPS URL the wizard asks for. See [Polygon RPC endpoint (setup wizard)](#polygon-rpc-endpoint-setup-wizard) below. |
-| **Private Key** | Export from your wallet app (MetaMask, Coinbase Wallet, etc.) or Polymarket account settings (if using custodial wallet). This is the EOA wallet linked to your Polymarket account. |
-| **Proxy Wallet Address (Funder Address)** | Your Polymarket "Funder Address" - visible in your Polymarket deposit/withdraw page or account settings. This is the address where your Polymarket positions are held. |
-| **Builder API Key** | [Polymarket Settings → Builder Codes](https://polymarket.com/settings?tab=builder) - Create a new API key |
-| **Builder API Secret** | Shown once when you create the API key (save it!) |
-| **Builder API Passphrase** | You set this when creating the API key |
-
-> ⚠️ **Important**: 
-> - **Private Key**: Polymarket supports most crypto wallets (MetaMask, Coinbase Wallet, WalletConnect, etc.). Export your private key from whichever wallet you connected to Polymarket. If you created a custodial wallet through Polymarket, export from your Polymarket account settings.
-> - **Proxy Wallet Address (Funder Address)**: This is the address where your Polymarket positions are stored. It may be the same as your EOA address or a Polymarket proxy contract address, depending on how your account was set up. You can find it in your Polymarket deposit/withdraw settings or account settings. The script will display both your EOA and Proxy Wallet addresses when it runs, so you can verify they match what you entered.
-
----
-
-## 🚀 Installation
-
-### Step 1: Clone the Repository
+## Install
 
 ```bash
 git clone https://github.com/NocodeSolutions/polymarket-gasless-redeem-cli.git
 cd polymarket-gasless-redeem-cli
-```
-
-### Step 2: Install Node.js Dependencies
-
-```bash
 npm install
 ```
 
-This will install:
-- `@polymarket/builder-relayer-client` - For gasless transactions
-- `@polymarket/builder-signing-sdk` - For API signing
-- `viem` - Modern Ethereum library (replaces ethers.js)
-- `tsx` - TypeScript runtime (development dependency)
-- `typescript` - TypeScript compiler (development dependency)
+## First-Time Setup
 
-### Step 3: Configure Encrypted Key Storage
+Run the setup wizard:
 
-Run the secure setup wizard to store your credentials:
-
-**Using npm (recommended):**
 ```bash
 npm run setup
 ```
 
-**Or using npx directly:**
-```bash
-npx tsx src/redeem.ts --setup
-```
+The wizard asks for:
 
-To reconfigure your keys (delete old ones and set up new ones):
+| Value | Notes |
+| --- | --- |
+| Polygon PoS RPC URL | Must be HTTPS and for Polygon mainnet, chain ID 137. |
+| Wallet private key | EOA wallet linked to your Polymarket account. |
+| Proxy wallet address | Polymarket funder address where positions are held. |
+| Builder API key | From Polymarket Builder Codes. |
+| Builder API secret | Shown when the API key is created. |
+| Builder API passphrase | Passphrase for the API key. |
+| Encryption password | Used to unlock local encrypted credentials. |
 
-**Using npm:**
+Credentials are stored in `.encrypted_keys` using AES-256-GCM encryption. The file is ignored by git.
+
+To reconfigure everything:
+
 ```bash
 npm run reset
 ```
 
-**Or using npx directly:**
+## Pick The Right Collateral
+
+Standard CTF redemptions need a collateral token address.
+
+| Use case | Option |
+| --- | --- |
+| Current Polymarket pUSD accounts | omit the flag, or use `--collateral pusd` |
+| Accounts still redeeming with USDC.e | use `--collateral usdce` |
+
+Default is pUSD.
+
+If your account is still USDC.e, use these commands:
+
 ```bash
-npx tsx src/redeem.ts --reset
+npm run check -- --collateral usdce
+npm run redeem -- --collateral usdce
 ```
 
-> ⚠️ **Note**: Key setup and reset must be done using Node.js/npm commands. The Python CLI is only for running redemptions with interval scheduling.
+The `--` after `npm run ...` is required. It passes the remaining arguments into the TypeScript CLI.
 
-The wizard will prompt you for (in this order):
+Direct TypeScript commands also work:
 
-| Prompt | What to Enter |
-|--------|---------------|
-| **Polygon PoS RPC URL** | The **HTTPS** RPC URL from your provider (must start with `https://`). The CLI prints a link to the official [Polygon PoS RPC infrastructure providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers) list—open it, pick a provider, create a Polygon **mainnet** endpoint, and paste the URL here. Invalid URLs are rejected until you enter a valid one. |
-| Wallet private key | Your EOA private key - export from your wallet (MetaMask, Coinbase Wallet, etc.) or Polymarket account if using custodial wallet. Starts with `0x`. |
-| Proxy wallet address | Your Polymarket Funder Address - the address where your positions are held. Find it in Polymarket deposit/withdraw settings. Starts with `0x`. |
-| Builder API key | From [Polymarket Builder Codes](https://polymarket.com/settings?tab=builder) |
-| Builder API secret | The secret shown when you created the API key |
-| Builder API passphrase | The passphrase you set when creating the API key |
-| Encryption password | **Create a strong password** - you'll need this to run redemptions |
-
-**Pasting in Windows CMD:** If **Ctrl+V** does nothing, try **Shift+Insert**, **right-click** paste, or copy the value and type **`@paste`** then Enter (uses the clipboard on Windows).
-
-### Polygon RPC endpoint (setup wizard)
-
-The tool talks to **Polygon PoS** (chain ID **137**) for wallet / viem operations. You must supply a working **HTTPS JSON-RPC** URL.
-
-1. **Why not a default URL?** The old public endpoint **polygon-rpc.com** is [deprecated](https://polygon-rpc.com/) (see Polygon’s notice). This project no longer ships a shared default—you choose a provider.
-2. **Where to get a URL:** Use Polygon’s documentation: **[RPC endpoints → Infrastructure providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers)**. Sign up with any listed provider, create a **Polygon mainnet** (PoS) HTTPS endpoint, and copy the full URL (often looks like `https://polygon-mainnet.g.alchemy.com/v2/...` or similar).
-3. **During setup:** The wizard shows that link, then asks: **“Enter your Polygon PoS RPC URL (https://...)”**. The URL is stored **inside** your encrypted `.encrypted_keys` file with your other setup data.
-4. **Override with environment:** Set **`RPC_URL`** to a HTTPS URL if you want to override the saved value (useful for CI, scripts, or switching providers without re-running setup).
-5. **Older installs:** If you set up before RPC was stored in the key file, either set **`RPC_URL`** in the environment or run **`npm run reset`** / **`npx tsx src/redeem.ts --reset`** to run the wizard again and save an RPC URL.
-
-> 🔐 **Security**: Your credentials are encrypted with AES-256-GCM and stored in `.encrypted_keys`. 
-> - **One-time mode**: Password prompted each run
-> - **Interval mode**: Password prompted once at startup, kept in memory for the session
-
----
-
-## 🎯 Quick Start
-
-### Step 1: Setup Encrypted Keys (one-time)
-
-**Using npm (recommended):**
 ```bash
-npm run setup
+npx tsx src/redeem.ts --check --collateral usdce
+npx tsx src/redeem.ts --collateral usdce
 ```
 
-**Or using npx directly:**
+Python wrapper:
+
 ```bash
-npx tsx src/redeem.ts --setup
+python redeem_cli.py --check --collateral usdce
+python redeem_cli.py --once --collateral usdce
+python redeem_cli.py --interval 15 --collateral usdce
 ```
 
-> ⚠️ **Note**: The Python CLI doesn't support `--setup` or `--reset` flags. You must use Node.js/npm for initial setup and key management.
+For automated runs, you can set an environment variable instead:
 
-### Step 2: Test Your Setup
+macOS/Linux (`zsh` or `bash`):
 
-Verify everything is configured correctly:
+```bash
+export REDEEM_COLLATERAL=usdce
+```
 
-**Using npm:**
+Windows PowerShell:
+
+```powershell
+$env:REDEEM_COLLATERAL="usdce"
+```
+
+## Safe Test Run
+
+Use check mode before redeeming:
+
 ```bash
 npm run check
 ```
 
-**Or using npx directly:**
+For USDC.e accounts:
+
 ```bash
-npx tsx src/redeem.ts --check
+npm run check -- --collateral usdce
 ```
 
-**Or using Python:**
-```bash
-python redeem_cli.py --check
-```
+Check mode:
 
-This will:
-- ✅ Verify your encrypted keys are set up
-- ✅ Connect to Polymarket's API
-- ✅ Check for redeemable positions
-- ✅ Display results without redeeming
+- loads your encrypted credentials
+- connects to Polymarket's Data API
+- lists redeemable positions
+- does not submit any transaction
 
-### Step 3: Run Your First Redemption
+## Redeem Once
 
-Once verified, run a one-time redemption:
+Default pUSD:
 
-**Using npm:**
 ```bash
 npm run redeem
 ```
 
-**Or using npx directly:**
-```bash
-npx tsx src/redeem.ts
-```
-
-**Or using Python:**
-```bash
-python redeem_cli.py --once
-```
-
----
-
-## 📖 Usage
-
-This tool provides two ways to run redemptions:
-
-1. **Node.js/TypeScript** (`src/redeem.ts`) - Core engine, supports one-time operations
-2. **Python CLI** (`redeem_cli.py`) - Wrapper with built-in interval scheduling
-
-### Quick Reference
-
-| Task | Node.js/npm Command | Python Command |
-|------|-------------------|----------------|
-| **Show help** | `npm run help` or `npx tsx src/redeem.ts --help` | `python redeem_cli.py --help` |
-| **Setup keys** | `npm run setup` | ❌ Not supported - use npm |
-| **Reset keys** | `npm run reset` | ❌ Not supported - use npm |
-| **Check positions** | `npm run check` | `python redeem_cli.py --check` |
-| **Redeem once** | `npm run redeem` | `python redeem_cli.py --once` |
-| **Redeem every N min** | ❌ Use cron/Task Scheduler | `python redeem_cli.py --interval N` |
-
-### Node.js/TypeScript Commands
-
-The TypeScript implementation is the core engine. You can use it via npm scripts or directly with npx.
-
-#### Available npm Scripts
-
-| Command | Description | Equivalent Direct Command |
-|---------|-------------|---------------------------|
-| `npm run setup` | Setup encrypted key storage | `npx tsx src/redeem.ts --setup` |
-| `npm run reset` | Reset and reconfigure keys | `npx tsx src/redeem.ts --reset` |
-| `npm run check` | Check for redeemable positions (no redemption) | `npx tsx src/redeem.ts --check` |
-| `npm run redeem` | Redeem all available positions once | `npx tsx src/redeem.ts` |
-| `npm run start` | Same as `npm run redeem` | `npx tsx src/redeem.ts` |
-| `npm run help` | Show help message | `npx tsx src/redeem.ts --help` |
-| `npm run dev` | Run in watch mode (development) | `npx tsx watch src/redeem.ts` |
-
-#### Direct TypeScript Commands
+USDC.e:
 
 ```bash
-# Show help message
-npx tsx src/redeem.ts --help
-# or: npx tsx src/redeem.ts -h
-
-# Setup encrypted keys (one-time)
-npx tsx src/redeem.ts --setup
-
-# Reset and reconfigure keys
-npx tsx src/redeem.ts --reset
-
-# Check for redeemable positions (no redemption)
-npx tsx src/redeem.ts --check
-
-# Redeem all available positions once
-npx tsx src/redeem.ts
+npm run redeem -- --collateral usdce
 ```
 
-> 💡 **Note**: Node.js commands support one-time operations only. For automatic interval scheduling, use the Python CLI or configure cron/Task Scheduler.
+Python wrapper:
 
-### Python CLI Commands
-
-The Python CLI provides built-in interval scheduling and is recommended for automated services.
-
-#### Command-Line Options
-
-```bash
-python redeem_cli.py [OPTIONS]
-```
-
-| Option | Description |
-|--------|-------------|
-| `--interval MINUTES` | Run redemption automatically every N minutes |
-| `--once` | Run redemption once and exit (default if --interval not specified) |
-| `--check` | Only check for redeemable positions, don't actually redeem |
-| `--help`, `-h` | Show help message and exit |
-
-> 💡 **Note**: Both Node.js and Python CLIs support `--help`. Use `npm run help` or `npx tsx src/redeem.ts --help` for Node.js help, and `python redeem_cli.py --help` for Python help.
-
-> ⚠️ **Note**: The Python CLI doesn't support `--setup` or `--reset` flags. Use `npm run setup` or `npx tsx src/redeem.ts --setup` for key management.
-
-#### Usage Examples
-
-**One-Time Redemption:**
 ```bash
 python redeem_cli.py --once
+python redeem_cli.py --once --collateral usdce
 ```
 
-**Check Mode (no redemption):**
-```bash
-python redeem_cli.py --check
-```
+## Run On An Interval
 
-**Automatic Redemption (every 15 minutes):**
+The Python wrapper adds scheduling:
+
 ```bash
 python redeem_cli.py --interval 15
 ```
 
-**Automatic Redemption (every hour):**
+USDC.e interval run:
+
 ```bash
-python redeem_cli.py --interval 60
+python redeem_cli.py --interval 15 --collateral usdce
 ```
 
-> 💡 **Note**: The Python CLI prompts for your encryption password once at startup. The password is kept in memory for the session, so interval mode works automatically without re-prompting.
+For unattended use, set `REDEEM_PASSWORD` so the process does not prompt for the encryption password:
 
-#### Using Environment Variable (for scripts/services)
-
-For fully automated operation (e.g., systemd service), you can set the password via environment variable:
+macOS/Linux (`zsh` or `bash`):
 
 ```bash
 export REDEEM_PASSWORD="your_encryption_password"
+export REDEEM_COLLATERAL="usdce"
 python redeem_cli.py --interval 15
 ```
 
-> ⚠️ **Security Warning**: Only use `REDEEM_PASSWORD` in secured environments. The password is stored in memory during execution.
+Windows PowerShell:
 
-#### Stop Automatic Service
-
-Press `Ctrl+C` to gracefully stop the service.
-
-### Which Tool Should I Use?
-
-| Use Case | Recommended Tool | Command |
-|----------|----------------|---------|
-| Quick one-time redemption | Node.js (npm) | `npm run redeem` |
-| Check positions quickly | Node.js (npm) | `npm run check` |
-| Automatic interval scheduling | Python CLI | `python redeem_cli.py --interval 15` |
-| System service/daemon | Python CLI | `python redeem_cli.py --interval 15` |
-| Cron/Task Scheduler automation | Node.js (npm) | `npm run redeem` |
-
-### Example Output
-
-```
-=======================================================
-Polymarket Gasless Redemption v2.0 (TypeScript + Viem)
-=======================================================
-EOA: 0x5047f21090Ee39896C719a232C7e8A0d6CC2F7B6
-Proxy Wallet: 0x370a1dee49ba99971a9189b90778d913a54e4e63
-
-Fetching redeemable positions...
-Found 3 condition(s) to redeem:
-
-1. Will Bitcoin reach $100k by end of 2024?...
-   YES: Size 10.0000, Value $10.0000 [WIN]
-   NO: Size 0.0000, Value $0.0000 [LOSE]
-   Condition Value: $10.0000
-
-Total redeemable: $10.0000
-
-Initializing gasless relayer...
-[OK] Relayer ready
-
-1/3. Redeeming: Will Bitcoin reach $100k by end...
-   Value: $10.0000
-   CTF redeem (both outcomes)
-   Submitted, waiting for confirmation...
-   SUCCESS! Tx: 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-   https://polygonscan.com/tx/0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-
-=======================================================
-Redemption complete! 3/3 successful
-
-Successful transactions:
-   1. https://polygonscan.com/tx/0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-   2. https://polygonscan.com/tx/0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890
-   3. https://polygonscan.com/tx/0x7890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234
+```powershell
+$env:REDEEM_PASSWORD="your_encryption_password"
+$env:REDEEM_COLLATERAL="usdce"
+python redeem_cli.py --interval 15
 ```
 
----
+Only use `REDEEM_PASSWORD` on machines and shells you trust.
 
-## ⚙️ Configuration
+## Commands
 
-### Encrypted Key Storage
+| Task | Command |
+| --- | --- |
+| Setup credentials | `npm run setup` |
+| Reset credentials | `npm run reset` |
+| Check positions | `npm run check` |
+| Check positions with USDC.e | `npm run check -- --collateral usdce` |
+| Redeem once | `npm run redeem` |
+| Redeem once with USDC.e | `npm run redeem -- --collateral usdce` |
+| Show Node help | `npm run help` |
+| Python check | `python redeem_cli.py --check` |
+| Python redeem once | `python redeem_cli.py --once` |
+| Python interval | `python redeem_cli.py --interval 15` |
+| Python interval with USDC.e | `python redeem_cli.py --interval 15 --collateral usdce` |
 
-Credentials are stored securely using encrypted key storage. Run one of these commands to configure:
+## Environment Variables
+
+| Variable | Purpose |
+| --- | --- |
+| `REDEEM_PASSWORD` | Encryption password for unattended runs. |
+| `REDEEM_COLLATERAL` | `pusd` or `usdce`; default is `pusd`. CLI `--collateral` overrides it. |
+| `RPC_URL` | Optional Polygon PoS HTTPS RPC override. If unset, the setup-saved RPC URL is used. |
+| `LOG_LEVEL` | `ERROR`, `WARN`, `INFO`, or `DEBUG`. Default is `INFO`. |
+| `MAX_CONCURRENT_REDEMPTIONS` | Max parallel redemptions. Default is `3`. |
+
+## How It Works
+
+The maintained implementation is TypeScript:
+
+- `src/redeem.ts` is the main CLI.
+- `src/transactions.ts` builds CTF and NegRisk redemption transactions.
+- `src/collateral.ts` resolves `pusd` vs `usdce`.
+- `redeem_cli.py` is a Python wrapper that calls `npx tsx src/redeem.ts`.
+
+Root-level JavaScript snapshots were removed. Use the npm, npx, or Python commands above.
+
+Transaction flow:
+
+1. Fetch redeemable positions from `https://data-api.polymarket.com`.
+2. Group positions by condition ID.
+3. Build a CTF or NegRisk redemption transaction.
+4. Submit through `https://relayer-v2.polymarket.com`.
+5. Wait for confirmation and print PolygonScan links.
+
+## Troubleshooting
+
+### Keys not configured
+
+Run:
 
 ```bash
 npm run setup
-# or: npx tsx src/redeem.ts --setup
 ```
 
-> ⚠️ **Note**: Key setup must be done using Node.js/npm. The Python CLI doesn't support setup/reset commands.
+### Wrong collateral / redemption fails
 
-### Optional Environment Variables
-
-These environment variables can optionally override default settings:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `RPC_URL` | Polygon PoS **HTTPS** JSON-RPC URL. If set, it **overrides** the RPC URL saved during `--setup`. If unset, the URL from setup (in `.encrypted_keys`) is used. Required in some form for redemption—see [Polygon RPC endpoint (setup wizard)](#polygon-rpc-endpoint-setup-wizard). | _(none; must come from setup or this variable)_ |
-| `LOG_LEVEL` | Logging level (ERROR, WARN, INFO, DEBUG) | `INFO` |
-| `MAX_CONCURRENT_REDEMPTIONS` | Max parallel redemptions | `3` |
-
-**Provider list (pick one and use their Polygon mainnet HTTPS URL):** [Polygon PoS — infrastructure providers](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers).
-
-### File Structure
-
-```
-polymarket-gasless-redeem-cli/
-├── src/
-│   ├── redeem.ts          # Main TypeScript redemption script
-│   ├── config.ts          # Configuration management
-│   ├── keyManager.ts      # Encrypted key storage
-│   ├── rateLimiter.ts     # API rate limiting
-│   ├── transactionManager.ts  # Transaction management
-│   ├── transactions.ts   # Transaction building
-│   ├── types.ts           # TypeScript type definitions
-│   └── utils.ts           # Utility functions
-├── redeem_cli.py          # Python CLI wrapper (optional)
-├── package.json           # Node.js dependencies and scripts
-├── requirements.txt       # Python dependencies (empty - uses stdlib)
-├── tsconfig.json          # TypeScript configuration
-├── README.md              # This file
-└── .encrypted_keys        # Your encrypted credentials (not in git)
-```
-
----
-
-## 🔧 How It Works
-
-### Polymarket Redemption Flow
-
-This tool automates the **Polymarket token redemption process**:
-
-1. **🔍 Fetch Redeemable Positions** - Queries **Polymarket's Data API** for positions that can be redeemed (resolved markets where you hold winning tokens)
-2. **📊 Group by Condition ID** - Aggregates positions by market condition for efficient batch processing
-3. **🔨 Build Redemption Transactions** - Creates **CTF redeem** or **NegRisk redeem** transactions based on market type
-4. **🚀 Submit via Gasless Relayer** - Submits transactions through **Polymarket's Builder Relayer API** — zero gas fees!
-5. **✅ Confirm on Polygon** - Waits for blockchain confirmation and logs results with **PolygonScan** links
-
-### Supported Polymarket Position Types
-
-- **CTF Binary Markets** - Standard YES/NO prediction markets using the Conditional Tokens Framework (Gnosis CTF)
-- **Negative Risk Markets** - Multi-outcome markets with negative risk positions (e.g., "Who will win the election?")
-
-### Architecture: Node.js vs Python
-
-This tool has two components:
-
-| Component | Language | Purpose | Required? |
-|-----------|----------|---------|-----------|
-| `src/redeem.ts` | TypeScript/Node.js | Core engine - handles all API calls, encryption, and transactions | ✅ **Yes** |
-| `redeem_cli.py` | Python | Convenience wrapper - adds built-in `--interval` scheduling | ❌ **Optional** |
-
-**Why Python?** The Python CLI was added for ease of use - it provides built-in interval scheduling without needing to configure cron jobs or Task Scheduler. If you're comfortable with system scheduling tools, you can use Node.js directly and skip Python entirely.
-
-**Node.js Only (no Python needed):**
-```bash
-npm run check    # Check positions
-npm run redeem   # Redeem positions
-# Use cron (Linux/Mac) or Task Scheduler (Windows) for automation
-```
-
-**With Python (built-in scheduling):**
-```bash
-python redeem_cli.py --interval 15  # Runs every 15 minutes automatically
-```
-
-### Transaction Flow
-
-```
-┌─────────────────────────────────────────────┐
-│  Option A: Python CLI (optional)            │
-│  - Provides --interval scheduling           │
-│  - Prompts password once, keeps in memory   │
-└──────────────────┬──────────────────────────┘
-                   │ (calls as subprocess)
-                   ▼
-┌─────────────────────────────────────────────┐
-│  src/redeem.ts (TypeScript/Node.js) - REQUIRED │
-│  - Encrypted key management                 │
-│  - Polymarket API integration               │
-│  - Transaction building & submission        │
-└──────────────────┬──────────────────────────┘
-                   │
-       ┌───────────┴───────────┐
-       ▼                       ▼
- Polymarket Data API    Builder Relayer
- (fetch positions)      (gasless transactions)
-                              │
-                              ▼
-                       Polygon Network
-```
-
----
-
-## 🖥️ Running as a Service
-
-> ⚠️ **Note**: For automated services, set the `REDEEM_PASSWORD` environment variable to avoid interactive password prompts.
-
-### Linux/macOS (systemd)
-
-Create a systemd service file at `/etc/systemd/system/polymarket-gasless-redeem-cli.service`:
-
-```ini
-[Unit]
-Description=Polymarket Gasless Redeem CLI
-After=network.target
-
-[Service]
-Type=simple
-User=your_user
-WorkingDirectory=/path/to/polymarket-gasless-redeem-cli
-Environment="PATH=/usr/bin:/usr/local/bin"
-Environment="REDEEM_PASSWORD=your_encryption_password"
-ExecStart=/usr/bin/python3 /path/to/polymarket-gasless-redeem-cli/redeem_cli.py --interval 15
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-> 🔒 **Security Tip**: For production, consider using systemd's `EnvironmentFile` directive to load the password from a secured file with restricted permissions.
-
-Enable and start the service:
+Try the other collateral in check mode first:
 
 ```bash
-sudo systemctl enable polymarket-gasless-redeem-cli
-sudo systemctl start polymarket-gasless-redeem-cli
-sudo systemctl status polymarket-gasless-redeem-cli
+npm run check -- --collateral usdce
+npm run check -- --collateral pusd
 ```
 
-View logs:
+Then redeem with the one that matches your account.
 
-```bash
-sudo journalctl -u polymarket-gasless-redeem-cli -f
-```
+### Polygon RPC URL is not configured
 
-### Using PM2 (Node.js Process Manager)
+Either run setup/reset again:
 
-```bash
-npm install -g pm2
-REDEEM_PASSWORD="your_password" pm2 start redeem_cli.py --name polymarket-gasless-redeem-cli --interpreter python3 -- --interval 15
-pm2 save
-pm2 startup
-```
-
-### Using Supervisor
-
-Create `/etc/supervisor/conf.d/polymarket-gasless-redeem-cli.conf`:
-
-```ini
-[program:polymarket-gasless-redeem-cli]
-command=/usr/bin/python3 /path/to/polymarket-gasless-redeem-cli/redeem_cli.py --interval 15
-directory=/path/to/polymarket-gasless-redeem-cli
-user=your_user
-environment=REDEEM_PASSWORD="your_encryption_password"
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/polymarket-gasless-redeem-cli.err.log
-stdout_logfile=/var/log/polymarket-gasless-redeem-cli.out.log
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### ❌ "Node.js is not installed or not in PATH"
-
-**Solution:**
-- Install Node.js from [https://nodejs.org/](https://nodejs.org/)
-- Ensure `node` command is available in your PATH
-- Restart your terminal after installation
-
-#### ❌ "Encrypted keys not configured"
-
-**Solution:**
-- Run `npm run setup` or `npx tsx src/redeem.ts --setup` to configure your credentials
-- Follow the setup wizard to enter your wallet and API credentials
-- Create a strong password to encrypt your keys
-- Note: Python CLI doesn't support setup - use Node.js/npm for key management
-
-#### ❌ "Polygon RPC URL is not configured"
-
-**Solution:**
-- Set the **`RPC_URL`** environment variable to a valid **HTTPS** Polygon mainnet JSON-RPC URL from an [infrastructure provider](https://docs.polygon.technology/pos/reference/rpc-endpoints/#infrastructure-providers), **or**
-- Run **`npm run reset`** / **`npx tsx src/redeem.ts --reset`** and complete the wizard so an RPC URL is saved with your encrypted keys.
-
-#### ❌ "Invalid password or corrupted key file"
-
-**Solution:**
-- Verify you're entering the correct encryption password
-- If you forgot your password or want to reconfigure, run `npm run reset` or `npx tsx src/redeem.ts --reset` to delete old keys and set up new ones
-- Ensure the key file hasn't been modified or corrupted
-- Note: Python CLI doesn't support reset - use Node.js/npm for key management
-
-#### ❌ "Redemption script not found"
-
-**Solution:**
-- Ensure you're running commands from the project root directory
-- Verify `src/redeem.ts` exists (for Node.js) or `redeem_cli.py` exists (for Python)
-- Check file permissions: `chmod +x redeem_cli.py` (Linux/macOS) if needed
-- Ensure Node.js dependencies are installed: `npm install`
-
-#### ❌ "Script timed out"
-
-**Solution:**
-- Check your internet connection
-- Verify Polymarket API is accessible
-- Service will retry automatically in automatic mode
-- Increase timeout in `redeem_cli.py` if needed (default: 120 seconds)
-
-#### ❌ "Failed to redeem positions"
-
-**Solution:**
-- Verify your Builder API credentials are correct
-- Check your proxy wallet address is correct
-- Ensure your wallet has sufficient balance (if needed)
-- Check Polygon network status
-- Review transaction on PolygonScan for error details
-
-#### ❌ "No redeemable positions found"
-
-**This is normal!** It means:
-- All positions are already redeemed, or
-- No positions have resolved yet, or
-- Positions don't meet the minimum size threshold (0.01)
-
-### Debug Mode
-
-For more detailed logging, you can modify the logging level in `redeem_cli.py`:
-
-```python
-logging.basicConfig(
-    level=logging.DEBUG,  # Change from INFO to DEBUG
-    ...
-)
-```
-
----
-
-## 🔒 Security Considerations
-
-### 🔐 **Enhanced Security Features (v2.0)**
-
-This version includes significant security improvements:
-
-- **🔒 Encrypted Key Storage** - All sensitive data is encrypted with AES-256-GCM
-- **🛡️ Password Protection** - Keys are protected with PBKDF2-derived encryption keys
-- **✅ Input Validation** - All inputs are validated before processing
-- **🚦 Rate Limiting** - API calls are rate-limited to prevent abuse
-- **🔄 Retry Logic** - Automatic retry with exponential backoff for resilience
-- **📊 Structured Logging** - Secure logging without exposing sensitive data
-
-### Best Practices
-
-- 🔐 **Never share your encryption password** or recovery keys
-- 🚫 **Never commit `.encrypted_keys`** - It should be in `.gitignore`
-- 🔍 **Start with `--check`** - Verify setup before redeeming
-- 📊 **Monitor logs** - Regularly check for unexpected behavior
-- 🔄 **Rotate credentials** - Change API keys and passwords periodically
-- 🛡️ **Backup encrypted keys** - Store backups securely (password required to restore)
-- 👀 **Review transactions** - Check PolygonScan before running in automatic mode
-- 🔑 **Strong passwords** - Use complex passwords for key encryption
-
-### Security Checklist
-
-- [x] `.encrypted_keys` file is in `.gitignore`
-- [ ] Encryption password is strong (8+ characters, mixed case, numbers, symbols)
-- [x] Private keys are never logged or printed
-- [x] API credentials are encrypted at rest with AES-256-GCM
-- [ ] Service runs with minimal permissions
-- [x] Logs don't contain sensitive information
-- [ ] Regular security updates applied
-- [ ] Encrypted keys are backed up securely
-
-### Key Management
-
-The system uses encrypted key storage instead of plain environment variables:
-
-**First-time setup:**
-```bash
-npm run setup
-# or: npx tsx src/redeem.ts --setup
-```
-
-**Reset/reconfigure keys:**
 ```bash
 npm run reset
-# or: npx tsx src/redeem.ts --reset
 ```
 
-> ⚠️ **Important**: Key management (`--setup` and `--reset`) must be done using Node.js/npm commands. The Python CLI only supports running redemptions (`--once`, `--check`, `--interval`).
+or set an RPC URL:
 
-### Running Redemptions
-
-**Option 1: Node.js/npm (one-time operations)**
-```bash
-npm run check    # Check positions
-npm run redeem   # Redeem positions
-```
-
-**Option 2: Python CLI (supports intervals)**
-```bash
-python redeem_cli.py --check        # Check positions
-python redeem_cli.py --once         # Redeem once
-python redeem_cli.py --interval 15  # Redeem every 15 minutes
-```
-
-> 💡 **Tip**: Use **Python CLI** for scheduled/automatic redemption. Use **Node.js/npm** for quick one-time operations.
-
-**Benefits:**
-- Keys are encrypted with AES-256-GCM
-- Password-based access control
-- No plain-text credentials in files
-- Automatic key validation
-- Secure key rotation support
-
----
-
-## ❓ Frequently Asked Questions
-
-### How do I redeem my Polymarket winnings?
-
-Use this CLI tool to automatically redeem your winning positions. After a market resolves, run `npm run redeem` or `python redeem_cli.py --once` to claim your USDC. The tool uses Polymarket's gasless relayer, so you pay zero gas fees.
-
-### What is the Polymarket Redeem API?
-
-Polymarket uses the **Builder Relayer API** for gasless redemptions. This tool integrates with that API to submit redemption transactions on your behalf without requiring you to pay Polygon gas fees. The redemption converts your winning CTF (Conditional Token Framework) tokens back to USDC.
-
-### How do I automate Polymarket withdrawals?
-
-Use the Python CLI with the `--interval` flag:
-```bash
-python redeem_cli.py --interval 15  # Check and redeem every 15 minutes
-```
-This runs continuously and automatically redeems any winning positions as markets resolve.
-
-### Is this a Polymarket trading bot?
-
-This is specifically a **redemption bot**, not a trading bot. It automates the process of claiming winnings from resolved markets. It does not place trades, analyze markets, or execute trading strategies. For trading, see the official [Polymarket API documentation](https://docs.polymarket.com).
-
-### What are gasless transactions?
-
-Gasless transactions use Polymarket's **Builder Relayer** to submit transactions on your behalf. You don't need MATIC in your wallet — Polymarket pays the gas fees. This tool leverages this feature for zero-cost redemptions.
-
-### Does this work with all Polymarket markets?
-
-Yes! This tool supports:
-- **Binary markets** (YES/NO outcomes) using the CTF (Conditional Token Framework)
-- **Negative risk markets** with multiple outcomes
-- All markets that have resolved and have redeemable positions
-
-### How do I check my redeemable positions without redeeming?
-
-Use check mode to see what positions are available without actually redeeming:
-```bash
-npm run check
-# or
-python redeem_cli.py --check
-```
-
-### Is my private key safe?
-
-Yes, your credentials are encrypted with **AES-256-GCM** encryption and stored locally. The encryption key is derived from your password using PBKDF2. Your private key is never stored in plaintext or transmitted anywhere except to sign transactions locally.
-
-### What blockchain does this use?
-
-This tool operates on the **Polygon network** (MATIC). Polymarket uses Polygon for its prediction markets due to low transaction costs and fast confirmations.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Development Setup
+macOS/Linux (`zsh` or `bash`):
 
 ```bash
-# Install dependencies
-npm install
-
-# Run tests (if available)
-python -m pytest
-
-# Run linter
-pylint redeem_cli.py
+export RPC_URL="https://your-polygon-rpc-url"
 ```
 
----
+Windows PowerShell:
 
-## 📝 License
+```powershell
+$env:RPC_URL="https://your-polygon-rpc-url"
+```
 
-This project is provided as-is for personal use. Use at your own risk.
+### Python cannot set up keys
 
-**⚠️ Disclaimer:** This is NOT an official Polymarket library. This project (`polymarket-gasless-redeem-cli`) is an independent, community-developed tool and is not affiliated with, endorsed by, or maintained by Polymarket. The code interacts with Polymarket's APIs which may change without notice. Use at your own risk. The author is not responsible for any issues, data loss, failed transactions, or problems arising from the use of this library.
+That is expected. Key setup and reset are Node-only:
 
----
+```bash
+npm run setup
+npm run reset
+```
 
-## 📞 Support
+Use Python only for `--check`, `--once`, and `--interval`.
 
-For issues related to:
+## Development
 
-- **Polymarket API**: Check [Polymarket Documentation](https://docs.polymarket.com)
-- **Builder Relayer**: Contact [Polymarket Support](https://polymarket.com/support)
-- **This CLI**: [Open an issue on GitHub](https://github.com/NocodeSolutions/polymarket-gasless-redeem-cli/issues)
+Run tests:
 
----
+```bash
+npm test
+```
 
-## 📚 Additional Resources
+Build TypeScript:
 
-### Polymarket API & Documentation
-- [Polymarket API Documentation](https://docs.polymarket.com) - Official API docs for trading and redemption
-- [Polymarket CTF Redeem Guide](https://docs.polymarket.com/developers/CTF/redeem) - How token redemption works
-- [Polymarket Builder API](https://docs.polymarket.com/developers/builder-sdk) - Builder/Relayer SDK documentation
+```bash
+npm run build
+```
 
-### Related Tools & Libraries
-- [Builder Relayer Client](https://github.com/Polymarket/builder-relayer-client) - Official Polymarket gasless transaction client
-- [Polymarket CLOB Client](https://github.com/Polymarket/py-clob-client) - Python client for Polymarket trading
-- [Conditional Tokens Framework](https://docs.gnosis.io/conditionaltokens/) - Gnosis CTF documentation
+Verify collateral encoding manually:
 
-### Blockchain & Development
-- [Polygon Network](https://polygon.technology/) - Layer 2 blockchain used by Polymarket
-- [PolygonScan](https://polygonscan.com/) - Polygon block explorer for transaction verification
-- [Viem Documentation](https://viem.sh/) - Modern TypeScript Ethereum library
+```bash
+node --import tsx -e "import { decodeFunctionData } from 'viem'; import { CONFIG } from './src/config.ts'; import { createCtfRedeemTx } from './src/transactions.ts'; const tx=createCtfRedeemTx('0x1111111111111111111111111111111111111111111111111111111111111111', CONFIG.contracts.usdce); console.log(decodeFunctionData({ abi: CONFIG.abis.ctfRedeem, data: tx.data }).args[0])"
+```
 
----
+Expected USDC.e output:
 
-## 🎉 Changelog
+```text
+0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+```
 
-### Version 2.0.0 (2026-01-11)
+Expected pUSD output when using default collateral:
 
-- 🔐 **Encrypted key storage** - AES-256-GCM encryption for all credentials
-- 🔑 **Password-based access** - Secure password protection with PBKDF2
-- ⏰ **Improved interval mode** - Password prompted once at startup
-- 🔄 **REDEEM_PASSWORD env var** - Support for fully automated services
-- ✅ **Input validation** - Proper bytes32 validation for condition IDs
-- 🚦 **Rate limiting** - Built-in API rate limiting
-- 📊 **Structured logging** - Enhanced logging without sensitive data exposure
-- ⚡ **Migrated to Viem** - Replaced ethers.js with viem for modern Ethereum interactions
+```text
+0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB
+```
 
-### Version 1.0.0 (2026-01-10)
+## Security Notes
 
-- ✨ Initial release
-- 🚀 Automatic and manual redemption modes
-- 🔍 Check-only mode
-- 💻 CLI interface with comprehensive help
-- 📊 Detailed logging with PolygonScan links
-- 🌐 Cross-platform support
+- Never commit `.encrypted_keys`, `.env`, private keys, API secrets, or passwords.
+- Prefer check mode before redeeming.
+- Review transaction hashes on PolygonScan.
+- `REDEEM_PASSWORD` is convenient for services but exposes the password to that process environment.
 
----
+## License
 
-<div align="center">
-
-**Made with ❤️ for the Polymarket community**
-
-⭐ Star this repo if you find it useful!
-
----
-
-**Related searches:** Polymarket redeem API, Polymarket trading bot, Polymarket CLI tool, Polymarket automation, Polymarket withdraw winnings, Polymarket claim positions, prediction market bot, Polygon gasless transactions, Polymarket Builder API, CTF token redemption, how to redeem Polymarket, Polymarket payout, Polymarket USDC withdrawal
-
-</div>
+MIT

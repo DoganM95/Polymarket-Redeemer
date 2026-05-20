@@ -5,6 +5,7 @@
  * Usage:
  *   npx tsx src/redeem.ts          # Redeem all positions
  *   npx tsx src/redeem.ts --check  # Just check, don't redeem
+ *   npx tsx src/redeem.ts --collateral usdce  # Redeem with USDC.e collateral
  *   npx tsx src/redeem.ts --setup  # Setup encrypted key storage
  *   npx tsx src/redeem.ts --reset  # Reset keys and run setup
  *   npx tsx src/redeem.ts --help  # Show help message
@@ -15,7 +16,7 @@
  */
 function showHelp(): void {
   console.log(`
-Polymarket Gasless Redemption CLI v2.0
+Polymarket Gasless Redemption CLI v2.0.1
 =======================================
 
 USAGE:
@@ -24,6 +25,7 @@ USAGE:
 
 OPTIONS:
   --check          Check for redeemable positions without redeeming
+  --collateral     Collateral for standard CTF redemptions: pusd or usdce (default: pusd)
   --setup          Setup encrypted key storage (first-time setup)
   --reset          Reset and reconfigure encrypted keys
   --help, -h       Show this help message
@@ -32,6 +34,9 @@ EXAMPLES:
   # One-time redemption
   npm run redeem
   npx tsx src/redeem.ts
+
+  # One-time redemption with USDC.e collateral
+  npx tsx src/redeem.ts --collateral usdce
 
   # Check positions without redeeming
   npm run check
@@ -52,6 +57,7 @@ SETUP:
 ENVIRONMENT VARIABLES:
   REDEEM_PASSWORD    Encryption password (for automated scripts)
   RPC_URL            Polygon PoS HTTPS RPC (overrides URL saved at setup; optional if stored in keys)
+  REDEEM_COLLATERAL  Collateral for standard CTF redemptions: pusd or usdce (optional)
   LOG_LEVEL          Logging level: ERROR, WARN, INFO, DEBUG (optional)
 
 For more information, see README.md
@@ -70,6 +76,7 @@ import { CONFIG, validateConfig, loadEnvironmentOverrides } from './config.js';
 import { globalRateLimiter } from './rateLimiter.js';
 import { TransactionManager, TransactionState } from './transactionManager.js';
 import { createCtfRedeemTx, createNegRiskRedeemTx, calculateRedeemAmounts } from './transactions.js';
+import { resolveCollateralCurrency, type SelectedCollateral } from './collateral.js';
 import { retryWithBackoff, validators, logger, withTimeout, formatCurrency, sleep } from './utils.js';
 import type { Position, RawPositionData, MainResult, RedemptionResult, EncryptedKeys } from './types.js';
 
@@ -225,8 +232,17 @@ async function main(): Promise<MainResult> {
   const checkOnly = process.argv.includes('--check');
   const setupMode = process.argv.includes('--setup');
   const resetMode = process.argv.includes('--reset');
+  let selectedCollateral: SelectedCollateral;
 
-  console.log('Polymarket Gasless Redemption v2.0 (TypeScript + Viem)');
+  try {
+    selectedCollateral = resolveCollateralCurrency();
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[ERROR] Collateral configuration error:', errorMsg);
+    process.exit(1);
+  }
+
+  console.log('Polymarket Gasless Redemption v2.0.1 (TypeScript + Viem)');
   console.log('='.repeat(55));
 
   // Reset mode - delete existing keys and run setup
@@ -327,6 +343,7 @@ async function main(): Promise<MainResult> {
 
   console.log(`EOA: ${account.address}`);
   console.log(`Proxy Wallet: ${keys.funderAddress}`);
+  console.log(`Collateral: ${selectedCollateral.label} (${selectedCollateral.address})`);
 
   // Get redeemable positions with retry logic
   console.log('\nFetching redeemable positions...');
@@ -427,8 +444,8 @@ async function main(): Promise<MainResult> {
           console.log(`   NegRisk redeem, amounts: [${amounts.map(a => a.toString()).join(', ')}]`);
         } else {
           // CTF binary: redeem both outcomes at once
-          tx = createCtfRedeemTx(pos.conditionId);
-          console.log(`   CTF redeem (both outcomes)`);
+          tx = createCtfRedeemTx(pos.conditionId, selectedCollateral.address);
+          console.log(`   CTF redeem (both outcomes), collateral: ${selectedCollateral.label}`);
         }
 
         // Execute via relayer with timeout

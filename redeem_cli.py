@@ -44,7 +44,13 @@ def load_env_file():
 class RedemptionCLI:
     """Command-line interface for Polymarket redemption service."""
     
-    def __init__(self, interval_minutes: int = None, check_only: bool = False, password: str = None):
+    def __init__(
+        self,
+        interval_minutes: int = None,
+        check_only: bool = False,
+        password: str = None,
+        collateral: str = None,
+    ):
         """
         Initialize the redemption CLI.
         
@@ -52,10 +58,12 @@ class RedemptionCLI:
             interval_minutes: Interval in minutes for automatic redemption (None = one-time)
             check_only: If True, only check for redeemable positions without redeeming
             password: Encryption password for automated mode
+            collateral: Optional collateral token for standard CTF redemptions (pusd or usdce)
         """
         self.interval_minutes = interval_minutes
         self.check_only = check_only
         self.password = password
+        self.collateral = collateral
         self._stop = asyncio.Event()
         self._task = None
         self._next_run_at = None
@@ -107,6 +115,8 @@ class RedemptionCLI:
         args = ["npx", "tsx", "src/redeem.ts"]
         if self.check_only:
             args.append("--check")
+        if self.collateral:
+            args.extend(["--collateral", self.collateral])
         
         try:
             result_data = await asyncio.wait_for(
@@ -224,6 +234,9 @@ Examples:
   # One-time redemption
   python redeem_cli.py --once
 
+  # One-time redemption with USDC.e collateral
+  python redeem_cli.py --once --collateral usdce
+
   # One-time check (no redemption)
   python redeem_cli.py --check
 
@@ -258,6 +271,12 @@ For more information, see README.md
         "--check",
         action="store_true",
         help="Only check for redeemable positions, don't actually redeem"
+    )
+
+    parser.add_argument(
+        "--collateral",
+        choices=["pusd", "usdce"],
+        help="Collateral for standard CTF redemptions: pusd or usdce (default: pusd, or REDEEM_COLLATERAL)"
     )
     
     args = parser.parse_args()
@@ -305,7 +324,8 @@ For more information, see README.md
     cli = RedemptionCLI(
         interval_minutes=interval_minutes,
         check_only=args.check,
-        password=password
+        password=password,
+        collateral=args.collateral
     )
     
     try:

@@ -28,19 +28,23 @@ const negRiskRedeemPrepared = prepareEncodeFunctionData({
  * Create CTF redeem transaction for standard binary markets
  * Redeems both outcomes (indexSets [1, 2]) in a single call
  */
-export function createCtfRedeemTx(conditionId: Hex): Transaction {
+export function createCtfRedeemTx(
+  conditionId: Hex,
+  collateralToken: Address = CONFIG.contracts.pusd
+): Transaction {
   if (!validators.isValidBytes32(conditionId)) {
     throw new Error(`Invalid condition ID: ${conditionId}`);
   }
 
   const data = encodeFunctionData({
     ...ctfRedeemPrepared,
-    args: [CONFIG.contracts.usdc, zeroHash, conditionId, [1n, 2n]]
+    args: [collateralToken, zeroHash, conditionId, [1n, 2n]]
   });
 
   logger.debug('Created CTF redeem transaction', {
     to: CONFIG.contracts.ctf,
     conditionId,
+    collateralToken,
     outcomes: [1, 2]
   });
 
@@ -54,7 +58,7 @@ export function createCtfRedeemTx(conditionId: Hex): Transaction {
 /**
  * Create NegRisk adapter redeem transaction for negative risk markets
  * @param conditionId - The condition ID to redeem
- * @param amounts - Array of amounts [yesTokens, noTokens] in base units (1e6 for USDC decimals)
+ * @param amounts - Array of amounts [yesTokens, noTokens] in base units (1e6 for pUSD decimals)
  */
 export function createNegRiskRedeemTx(conditionId: Hex, amounts: bigint[]): Transaction {
   if (!validators.isValidBytes32(conditionId)) {
@@ -92,7 +96,7 @@ export function createNegRiskRedeemTx(conditionId: Hex, amounts: bigint[]): Tran
 
 /**
  * Calculate redemption amounts from position sizes
- * Converts floating point sizes to base units (1e6 for USDC)
+ * Converts floating point sizes to base units (1e6 for pUSD)
  */
 export function calculateRedeemAmounts(sizes: number[]): bigint[] {
   return sizes.map(size => {
