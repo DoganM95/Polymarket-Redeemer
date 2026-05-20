@@ -38,3 +38,12 @@ test('pUSD negative-risk route preview uses the V2 negative-risk adapter target'
   assert.equal(tx.to, CONFIG.contracts.negRiskCtfCollateralAdapter);
   assert.deepEqual(decoded.args, [CONDITION_ID, AMOUNTS]);
 });
+
+test('wallet mode does not change pUSD standard redemption calldata', () => {
+  const route = resolveCollateralCurrency(['--collateral', 'pusd']);
+  const proxyTx = createCtfRedeemTx(CONDITION_ID, route);
+  const depositTx = createCtfRedeemTx(CONDITION_ID, route);
+
+  assert.equal(proxyTx.to, depositTx.to);
+  assert.equal(proxyTx.data, depositTx.data);
+});
