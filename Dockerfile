@@ -13,7 +13,7 @@ COPY package*.json ./
 RUN npm install
 
 # Copy only the source code needed, dockerignore handles exclusions
-COPY config.js entrypoint.sh keyManager.js rateLimiter.js redeem_cli.py redeem.js requirements.txt tsconfig.json utils.js ./
+COPY config.js entrypoint.sh keyManager.js rateLimiter.js redeem_cli.py redeem.js requirements.txt tsconfig.json./
 COPY src/ ./src
 
 # Make entrypoint executable
